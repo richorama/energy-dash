@@ -678,40 +678,91 @@ class Game {
     }
     
     drawCollectible(collectible) {
-        // Glow effect
-        const glowGradient = this.ctx.createRadialGradient(
-            collectible.x + collectible.width/2, collectible.y + collectible.height/2, 0,
-            collectible.x + collectible.width/2, collectible.y + collectible.height/2, 25
-        );
-        glowGradient.addColorStop(0, collectible.color + '80');
-        glowGradient.addColorStop(1, collectible.color + '00');
+        const centerX = collectible.x + collectible.width / 2;
+        const centerY = collectible.y + collectible.height / 2;
         
-        this.ctx.fillStyle = glowGradient;
-        this.ctx.fillRect(
-            collectible.x - 10, collectible.y - 10,
-            collectible.width + 20, collectible.height + 20
-        );
+        // Create multiple glow layers for beautiful effect
+        this.ctx.save();
         
-        // Main collectible body
-        this.ctx.fillStyle = collectible.color;
-        this.ctx.fillRect(collectible.x, collectible.y, collectible.width, collectible.height);
+        // Outer glow (largest, most transparent)
+        const outerGlow = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 25);
+        outerGlow.addColorStop(0, collectible.color + '60');
+        outerGlow.addColorStop(0.3, collectible.color + '30');
+        outerGlow.addColorStop(1, collectible.color + '00');
+        this.ctx.fillStyle = outerGlow;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 25, 0, Math.PI * 2);
+        this.ctx.fill();
         
-        // Symbol with outline for better visibility
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = 'bold 22px Arial';
+        // Middle glow
+        const middleGlow = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 15);
+        middleGlow.addColorStop(0, collectible.color + 'AA');
+        middleGlow.addColorStop(0.5, collectible.color + '60');
+        middleGlow.addColorStop(1, collectible.color + '00');
+        this.ctx.fillStyle = middleGlow;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 15, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Inner glow (brightest)
+        const innerGlow = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, 8);
+        innerGlow.addColorStop(0, '#ffffff');
+        innerGlow.addColorStop(0.3, collectible.color);
+        innerGlow.addColorStop(1, collectible.color + '80');
+        this.ctx.fillStyle = innerGlow;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Pulsing effect - create animated brightness
+        const pulseIntensity = 0.3 + Math.sin(collectible.bobOffset * 3) * 0.2;
+        
+        // Core highlight with pulse
+        this.ctx.fillStyle = `rgba(255, 255, 255, ${pulseIntensity})`;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - 2, centerY - 2, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Draw the energy symbol with enhanced styling
+        this.ctx.save();
+        
+        // Symbol shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.font = 'bold 24px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(
-            collectible.symbol,
-            collectible.x + collectible.width / 2 + 1,
-            collectible.y + collectible.height / 2 + 8
-        );
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(collectible.symbol, centerX + 1, centerY + 1);
         
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillText(
-            collectible.symbol,
-            collectible.x + collectible.width / 2,
-            collectible.y + collectible.height / 2 + 7
-        );
+        // Main symbol with gradient
+        const symbolGradient = this.ctx.createLinearGradient(centerX, centerY - 12, centerX, centerY + 12);
+        symbolGradient.addColorStop(0, '#ffffff');
+        symbolGradient.addColorStop(0.5, collectible.color);
+        symbolGradient.addColorStop(1, this.darkenColor(collectible.color, 0.3));
+        
+        this.ctx.fillStyle = symbolGradient;
+        this.ctx.fillText(collectible.symbol, centerX, centerY);
+        
+        // Symbol outline for better visibility
+        this.ctx.strokeStyle = this.darkenColor(collectible.color, 0.5);
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeText(collectible.symbol, centerX, centerY);
+        
+        // Add sparkle effects around the energy symbol
+        const sparkleCount = 4;
+        for (let i = 0; i < sparkleCount; i++) {
+            const angle = (i / sparkleCount) * Math.PI * 2 + collectible.bobOffset;
+            const sparkleX = centerX + Math.cos(angle) * 18;
+            const sparkleY = centerY + Math.sin(angle) * 18;
+            const sparkleSize = 1 + Math.sin(collectible.bobOffset * 2 + i) * 0.5;
+            
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${0.7 + Math.sin(collectible.bobOffset * 3 + i) * 0.3})`;
+            this.ctx.beginPath();
+            this.ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        this.ctx.restore();
+        this.ctx.restore();
     }
     
     drawParticle(particle) {
@@ -734,57 +785,323 @@ class Game {
         
         // Player shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-        this.ctx.fillRect(this.player.x, this.groundY, this.player.width, 8);
+        this.ctx.beginPath();
+        this.ctx.ellipse(this.player.x + this.player.width/2, this.groundY + 4, this.player.width/2, 6, 0, 0, Math.PI * 2);
+        this.ctx.fill();
         
-        // Main body with gradient
-        const gradient = this.ctx.createLinearGradient(this.player.x, this.player.y, this.player.x, this.player.y + this.player.height);
-        gradient.addColorStop(0, character.color);
-        gradient.addColorStop(1, character.accent);
+        // Calculate animation offsets
+        const runCycle = Math.sin(this.player.runCycle);
+        const legOffset = runCycle * 4;
+        const armOffset = Math.sin(this.player.runCycle + Math.PI) * 3;
+        const bobOffset = Math.abs(runCycle) * 2; // Slight vertical bob when running
         
-        this.ctx.fillStyle = gradient;
-        this.ctx.fillRect(this.player.x, this.player.y, this.player.width, this.player.height);
+        const playerY = this.player.y - bobOffset;
         
-        // Running animation legs
-        const legOffset = Math.sin(this.player.runCycle) * 3;
-        this.ctx.fillStyle = character.accent;
-        this.ctx.fillRect(this.player.x + 10, this.player.y + this.player.height - 20 + legOffset, 8, 20);
-        this.ctx.fillRect(this.player.x + 25, this.player.y + this.player.height - 20 - legOffset, 8, 20);
+        // Special rendering for Dave (fluffy character)
+        if (this.selectedCharacter === 'dave') {
+            this.drawFluffyDave(playerY, legOffset, armOffset);
+        } else {
+            // Regular character rendering for others
+            this.drawRegularCharacter(character, playerY, legOffset, armOffset);
+        }
         
-        // Arms
-        const armOffset = Math.sin(this.player.runCycle + Math.PI) * 2;
-        this.ctx.fillRect(this.player.x - 5, this.player.y + 20 + armOffset, 15, 6);
-        this.ctx.fillRect(this.player.x + this.player.width - 10, this.player.y + 20 - armOffset, 15, 6);
-        
-        // Face
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillRect(this.player.x + 12, this.player.y + 12, 10, 10); // Eyes area
-        this.ctx.fillRect(this.player.x + 28, this.player.y + 12, 10, 10);
-        
-        // Eyes
+        // Character name with better styling
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(this.player.x + 14, this.player.y + 14, 6, 6);
-        this.ctx.fillRect(this.player.x + 30, this.player.y + 14, 6, 6);
-        
-        // Character name
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = 'bold 14px Arial';
+        this.ctx.font = 'bold 12px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.fillText(
             character.name,
             this.player.x + this.player.width / 2 + 1,
-            this.player.y - 8
+            playerY - 12
         );
         this.ctx.fillStyle = '#ffffff';
         this.ctx.fillText(
             character.name,
             this.player.x + this.player.width / 2,
-            this.player.y - 9
+            playerY - 13
         );
+    }
+    
+    drawFluffyDave(playerY, legOffset, armOffset) {
+        const centerX = this.player.x + this.player.width / 2;
+        const character = this.characters['dave'];
         
-        // Player outline
-        this.ctx.strokeStyle = character.accent;
+        // Draw fluffy legs with movement
+        this.ctx.fillStyle = character.color;
+        
+        // Left leg (fluffy oval)
+        this.ctx.beginPath();
+        this.ctx.ellipse(this.player.x + 15, playerY + this.player.height - 15 + legOffset, 6, 12, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Right leg (fluffy oval)
+        this.ctx.beginPath();
+        this.ctx.ellipse(this.player.x + 30, playerY + this.player.height - 15 - legOffset, 6, 12, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Add fur texture to legs
+        this.drawFurTexture(this.player.x + 15, playerY + this.player.height - 15 + legOffset, 6);
+        this.drawFurTexture(this.player.x + 30, playerY + this.player.height - 15 - legOffset, 6);
+        
+        // Main fluffy body (large oval)
+        this.ctx.fillStyle = character.color;
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX, playerY + 30, 20, 25, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Add fur texture to body
+        this.drawFurTexture(centerX, playerY + 30, 20);
+        
+        // Fluffy arms with movement
+        this.ctx.fillStyle = character.color;
+        
+        // Left arm (fluffy oval)
+        this.ctx.beginPath();
+        this.ctx.ellipse(this.player.x + 8, playerY + 25 + armOffset, 8, 5, Math.PI/6, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.drawFurTexture(this.player.x + 8, playerY + 25 + armOffset, 6);
+        
+        // Right arm (fluffy oval)
+        this.ctx.beginPath();
+        this.ctx.ellipse(this.player.x + this.player.width - 8, playerY + 25 - armOffset, 8, 5, -Math.PI/6, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.drawFurTexture(this.player.x + this.player.width - 8, playerY + 25 - armOffset, 6);
+        
+        // Fluffy head (large oval)
+        this.ctx.fillStyle = character.color;
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX, playerY + 8, 15, 18, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Add fur texture to head
+        this.drawFurTexture(centerX, playerY + 8, 15);
+        
+        // Eyes area (white ovals behind glasses)
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX - 4, playerY + 6, 3, 4, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX + 4, playerY + 6, 3, 4, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Large googly eyes
+        this.ctx.fillStyle = '#000000';
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX - 4, playerY + 6, 2, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX + 4, playerY + 6, 2, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Eye highlights
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - 4, playerY + 5, 1, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + 4, playerY + 5, 1, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Glasses frames
+        this.ctx.strokeStyle = '#333333';
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(this.player.x, this.player.y, this.player.width, this.player.height);
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX - 4, playerY + 6, 5, 6, 0, 0, Math.PI * 2);
+        this.ctx.stroke();
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX + 4, playerY + 6, 5, 6, 0, 0, Math.PI * 2);
+        this.ctx.stroke();
+        
+        // Bridge of glasses
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - 1, playerY + 6);
+        this.ctx.lineTo(centerX + 1, playerY + 6);
+        this.ctx.stroke();
+        
+        // Small mouth
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, playerY + 12, 2, 0, Math.PI);
+        this.ctx.stroke();
+    }
+    
+    drawRegularCharacter(character, playerY, legOffset, armOffset) {
+        // Draw legs (rounded rectangles)
+        this.ctx.fillStyle = character.accent;
+        
+        // Left leg
+        this.ctx.beginPath();
+        this.roundRect(this.ctx, this.player.x + 12, playerY + this.player.height - 25 + legOffset, 8, 25, 4);
+        this.ctx.fill();
+        
+        // Right leg  
+        this.ctx.beginPath();
+        this.roundRect(this.ctx, this.player.x + 28, playerY + this.player.height - 25 - legOffset, 8, 25, 4);
+        this.ctx.fill();
+        
+        // Main body (rounded rectangle)
+        this.ctx.fillStyle = character.color;
+        this.ctx.beginPath();
+        this.roundRect(this.ctx, this.player.x + 8, playerY + 15, this.player.width - 16, this.player.height - 30, 8);
+        this.ctx.fill();
+        
+        // Arms (rounded rectangles)
+        this.ctx.fillStyle = character.color;
+        
+        // Left arm
+        this.ctx.beginPath();
+        this.roundRect(this.ctx, this.player.x - 2, playerY + 20 + armOffset, 12, 6, 3);
+        this.ctx.fill();
+        
+        // Right arm
+        this.ctx.beginPath();
+        this.roundRect(this.ctx, this.player.x + this.player.width - 10, playerY + 20 - armOffset, 12, 6, 3);
+        this.ctx.fill();
+        
+        // Head (circle) - smaller and better proportioned
+        this.ctx.fillStyle = character.color;
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2, playerY + 8, 8, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Head highlight
+        this.ctx.fillStyle = this.lightenColor(character.color, 0.3);
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2 - 2, playerY + 6, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Eyes (white circles with black pupils) - adjusted for smaller head
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2 - 3, playerY + 7, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2 + 3, playerY + 7, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Pupils
+        this.ctx.fillStyle = '#000000';
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2 - 3, playerY + 7, 1, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2 + 3, playerY + 7, 1, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Mouth (small arc) - adjusted position
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.arc(this.player.x + this.player.width/2, playerY + 10, 1.5, 0, Math.PI);
+        this.ctx.stroke();
+        
+        // Character-specific details for non-Dave characters
+        if (this.selectedCharacter === 'mel') {
+            // Coffee cup accessory
+            this.ctx.fillStyle = '#8b4513';
+            this.ctx.beginPath();
+            this.roundRect(this.ctx, this.player.x + this.player.width + 5, playerY + 18, 8, 6, 2);
+            this.ctx.fill();
+            
+            // Cup handle
+            this.ctx.strokeStyle = '#8b4513';
+            this.ctx.lineWidth = 2;
+            this.ctx.beginPath();
+            this.ctx.arc(this.player.x + this.player.width + 13, playerY + 21, 3, -Math.PI/2, Math.PI/2, false);
+            this.ctx.stroke();
+        } else if (this.selectedCharacter === 'ash') {
+            // Tech glasses - adjusted for smaller head
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.arc(this.player.x + this.player.width/2 - 3, playerY + 7, 3, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.beginPath();
+            this.ctx.arc(this.player.x + this.player.width/2 + 3, playerY + 7, 3, 0, Math.PI * 2);
+            this.ctx.stroke();
+            
+            // Bridge of glasses
+            this.ctx.beginPath();
+            this.ctx.moveTo(this.player.x + this.player.width/2 - 1, playerY + 7);
+            this.ctx.lineTo(this.player.x + this.player.width/2 + 1, playerY + 7);
+            this.ctx.stroke();
+        } else if (this.selectedCharacter === 'charlie') {
+            // Draw second smaller character (Riley) next to Charlie
+            const rileyX = this.player.x + this.player.width + 5;
+            const rileySize = 0.7;
+            
+            // Riley's body (smaller)
+            this.ctx.fillStyle = character.accent;
+            this.ctx.beginPath();
+            this.roundRect(this.ctx, rileyX, playerY + 20, (this.player.width - 16) * rileySize, (this.player.height - 30) * rileySize, 6);
+            this.ctx.fill();
+            
+            // Riley's head - smaller proportioned
+            this.ctx.fillStyle = character.color;
+            this.ctx.beginPath();
+            this.ctx.arc(rileyX + 8, playerY + 12, 6, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Riley's eyes
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.beginPath();
+            this.ctx.arc(rileyX + 6, playerY + 11, 1.5, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.arc(rileyX + 10, playerY + 11, 1.5, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            this.ctx.fillStyle = '#000000';
+            this.ctx.beginPath();
+            this.ctx.arc(rileyX + 6, playerY + 11, 0.8, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.arc(rileyX + 10, playerY + 11, 0.8, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+    }
+    
+    drawFurTexture(centerX, centerY, radius) {
+        // Add fluffy fur texture with small random lines
+        this.ctx.strokeStyle = this.darkenColor(this.characters['dave'].color, 0.2);
+        this.ctx.lineWidth = 1;
+        
+        for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const startX = centerX + Math.cos(angle) * (radius * 0.7);
+            const startY = centerY + Math.sin(angle) * (radius * 0.7);
+            const endX = centerX + Math.cos(angle) * (radius * 0.9);
+            const endY = centerY + Math.sin(angle) * (radius * 0.9);
+            
+            this.ctx.beginPath();
+            this.ctx.moveTo(startX, startY);
+            this.ctx.lineTo(endX, endY);
+            this.ctx.stroke();
+        }
+    }
+    
+    // Helper function to draw rounded rectangles
+    roundRect(ctx, x, y, width, height, radius) {
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+    }
+    
+    // Helper function to lighten colors
+    lightenColor(color, factor) {
+        const hex = color.replace('#', '');
+        const r = Math.min(255, parseInt(hex.substr(0, 2), 16) + (255 * factor));
+        const g = Math.min(255, parseInt(hex.substr(2, 2), 16) + (255 * factor));
+        const b = Math.min(255, parseInt(hex.substr(4, 2), 16) + (255 * factor));
+        return `rgb(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)})`;
     }
     
     darkenColor(color, factor) {
