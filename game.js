@@ -9,7 +9,7 @@ class Game {
         window.addEventListener('resize', () => this.resizeCanvas());
         
         this.gameState = 'menu'; // menu, playing, gameOver, leaderboard
-        this.selectedCharacter = null;
+        this.selectedCharacter = 'dave'; // Default character
         
         // Performance monitoring
         this.performanceMetrics = {
@@ -155,22 +155,9 @@ class Game {
     }
     
     setupUI() {
-        // Character selection
-        const characterBtns = document.querySelectorAll('.character-btn');
-        characterBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                characterBtns.forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                this.selectedCharacter = btn.dataset.character;
-                document.getElementById('startBtn').disabled = false;
-            });
-        });
-        
         // Start game button
         document.getElementById('startBtn').addEventListener('click', () => {
-            if (this.selectedCharacter) {
-                this.startGame();
-            }
+            this.startGame();
         });
         
         // Restart button
@@ -194,9 +181,8 @@ class Game {
     startGame() {
         this.gameState = 'playing';
         this.resetGame();
-        if (this.selectedCharacter) {
-            this.player.color = this.characters[this.selectedCharacter].color;
-        }
+        // Set default character color
+        this.player.color = this.characters[this.selectedCharacter].color;
         this.hideAllMenus();
     }
     
@@ -292,8 +278,8 @@ class Game {
             x: this.canvas.width,
             y: baseY,
             baseY: baseY, // Store original Y for floating animation
-            width: 53,   // Increased from 35
-            height: 53,  // Increased from 35
+            width: 70,   // Increased from 53
+            height: 70,  // Increased from 53
             type: selectedType.type,
             symbol: selectedType.symbol,
             points: selectedType.points,
@@ -347,6 +333,26 @@ class Game {
         // Generate fewer buildings for better performance
         for (let i = 0; i < 15; i++) {  // Reduced from 25
             const height = 60 + Math.random() * 300;
+            
+            // Assign depth based on height - taller buildings are closer, shorter are further
+            let depth, speed, opacity;
+            if (height < 150) {
+                // Background buildings - smaller, slower, more transparent
+                depth = 'background';
+                speed = 0.2;
+                opacity = 0.6;
+            } else if (height < 250) {
+                // Middle ground buildings
+                depth = 'middle';
+                speed = 0.4;
+                opacity = 0.8;
+            } else {
+                // Foreground buildings - taller, faster, fully opaque
+                depth = 'foreground';
+                speed = 0.6;
+                opacity = 1.0;
+            }
+            
             const building = {
                 x: i * 120 + Math.random() * 60,
                 y: this.groundY - height,
@@ -354,7 +360,9 @@ class Game {
                 height: height,
                 color: this.getRandomBuildingColor(),
                 windowPattern: Math.floor(Math.random() * 3),
-                speed: 0.3 + Math.random() * 0.2,
+                speed: speed, // Fixed speed based on depth
+                depth: depth,
+                opacity: opacity,
                 windows: [] // Pre-generate window pattern
             };
             
@@ -374,6 +382,12 @@ class Game {
             
             this.buildings.push(building);
         }
+        
+        // Sort buildings by depth for proper rendering order (background to foreground)
+        this.buildings.sort((a, b) => {
+            const depthOrder = { 'background': 0, 'middle': 1, 'foreground': 2 };
+            return depthOrder[a.depth] - depthOrder[b.depth];
+        });
     }
     
     generateClouds() {
@@ -499,7 +513,7 @@ class Game {
                         velocityY: -Math.random() * 4 - 1,
                         life: 60 + Math.random() * 20,
                         maxLife: 60 + Math.random() * 20,
-                        color: ['#00ff00', '#32cd32', '#7fff00'][Math.floor(Math.random() * 3)],
+                        color: ['#ffff00', '#ffd700', '#ffff7f'][Math.floor(Math.random() * 3)], // Changed to yellow shades
                         size: 4 + Math.random() * 4,
                         type: 'orb',
                         pulse: Math.random() * Math.PI * 2
@@ -513,7 +527,7 @@ class Game {
                         velocityY: -Math.random() * 5 - 3,
                         life: 30 + Math.random() * 10,
                         maxLife: 30 + Math.random() * 10,
-                        color: ['#00bfff', '#1e90ff', '#87ceeb'][Math.floor(Math.random() * 3)],
+                        color: ['#ffa500', '#ff8c00', '#ffb347'][Math.floor(Math.random() * 3)], // Changed to orange/yellow shades
                         size: 1 + Math.random() * 3,
                         type: 'lightning',
                         zigzag: Math.random() * 10
@@ -546,9 +560,25 @@ class Game {
             building.x -= building.speed * 0.5; // Slower when not playing
             if (building.x + building.width < 0) {
                 building.x = this.canvas.width + Math.random() * 100;
-                building.height = 40 + Math.random() * 200; // More varied heights
+                const newHeight = 60 + Math.random() * 300; // Generate new height
+                building.height = newHeight;
                 building.y = this.groundY - building.height;
                 building.color = this.getRandomBuildingColor();
+                
+                // Reassign depth properties based on new height
+                if (newHeight < 150) {
+                    building.depth = 'background';
+                    building.speed = 0.2;
+                    building.opacity = 0.6;
+                } else if (newHeight < 250) {
+                    building.depth = 'middle';
+                    building.speed = 0.4;
+                    building.opacity = 0.8;
+                } else {
+                    building.depth = 'foreground';
+                    building.speed = 0.6;
+                    building.opacity = 1.0;
+                }
                 
                 // Only regenerate windows occasionally to prevent stuttering
                 if (this.gameTime % 60 === 0 || building.windows.length === 0) {
@@ -1016,6 +1046,11 @@ class Game {
     }
     
     drawBuilding(building) {
+        this.ctx.save();
+        
+        // Apply opacity based on depth for proper parallax effect
+        this.ctx.globalAlpha = building.opacity || 1.0;
+        
         // Main building body with gradient
         const gradient = this.ctx.createLinearGradient(building.x, 0, building.x + building.width, 0);
         gradient.addColorStop(0, building.color);
@@ -1060,6 +1095,8 @@ class Game {
                 this.ctx.strokeRect(building.x + window.x, building.y + window.y, 8, 8);
             }
         }
+        
+        this.ctx.restore();
     }
     
     drawGround() {
@@ -1399,11 +1436,6 @@ class Game {
     }
     
     drawPlayer() {
-        // Don't draw player if no character is selected
-        if (!this.selectedCharacter || !this.characters[this.selectedCharacter]) {
-            return;
-        }
-        
         const character = this.characters[this.selectedCharacter];
         
         // Player shadow
@@ -1414,35 +1446,84 @@ class Game {
         
         // Calculate animation offsets
         const runCycle = Math.sin(this.player.runCycle);
-        const legOffset = runCycle * 4;
-        const armOffset = Math.sin(this.player.runCycle + Math.PI) * 3;
-        const bobOffset = Math.abs(runCycle) * 2; // Slight vertical bob when running
+        const legOffset = runCycle * 3; // Smaller leg movement
+        const bobOffset = Math.abs(runCycle) * 1; // Subtle vertical bob
+        const eyeBounce = Math.abs(runCycle) * 0.5; // Eye bounce when running
         
         const playerY = this.player.y - bobOffset;
+        const centerX = this.player.x + this.player.width / 2;
+        const centerY = playerY + this.player.height / 2;
         
-        // Special rendering for Dave (fluffy character)
-        if (this.selectedCharacter === 'dave') {
-            this.drawFluffyDave(playerY, legOffset, armOffset);
-        } else {
-            // Regular character rendering for others
-            this.drawRegularCharacter(character, playerY, legOffset, armOffset);
-        }
+        // Draw small legs first (behind the body)
+        this.ctx.fillStyle = character.color;
         
-        // Character name with better styling
-        this.ctx.fillStyle = '#000000';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.fillText(
-            character.name,
-            this.player.x + this.player.width / 2 + 1,
-            playerY - 12
-        );
+        // Calculate leg positions to connect to the bottom of the body
+        const bodyRadius = this.player.width * 0.4;
+        const legAttachY = centerY + bodyRadius - 4; // Attach to bottom of body, slightly overlapping
+        
+        // Left leg - small oval
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX - 8, legAttachY + legOffset, 4, 12, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Right leg - small oval  
+        this.ctx.beginPath();
+        this.ctx.ellipse(centerX + 8, legAttachY - legOffset, 4, 12, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Main body - large blue furry ball
+        this.ctx.fillStyle = character.color;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, bodyRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Add fur texture to body
+        this.drawFurTexture(centerX, centerY, bodyRadius);
+        
+        // Large round eyes - white base
+        const eyeSize = bodyRadius * 0.3;
+        const eyeOffsetX = bodyRadius * 0.3;
+        const eyeOffsetY = -bodyRadius * 0.2 + eyeBounce;
+        
+        // Left eye white
         this.ctx.fillStyle = '#ffffff';
-        this.ctx.fillText(
-            character.name,
-            this.player.x + this.player.width / 2,
-            playerY - 13
-        );
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - eyeOffsetX, centerY + eyeOffsetY, eyeSize, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Right eye white
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + eyeOffsetX, centerY + eyeOffsetY, eyeSize, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Eye pupils - large and expressive
+        const pupilSize = eyeSize * 0.6;
+        const pupilOffsetY = eyeBounce * 0.5;
+        
+        this.ctx.fillStyle = '#000000';
+        // Left pupil
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - eyeOffsetX, centerY + eyeOffsetY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Right pupil
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + eyeOffsetX, centerY + eyeOffsetY + pupilOffsetY, pupilSize, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Eye highlights for liveliness
+        this.ctx.fillStyle = '#ffffff';
+        const highlightSize = pupilSize * 0.3;
+        
+        // Left eye highlight
+        this.ctx.beginPath();
+        this.ctx.arc(centerX - eyeOffsetX - pupilSize * 0.3, centerY + eyeOffsetY - pupilSize * 0.3, highlightSize, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Right eye highlight
+        this.ctx.beginPath();
+        this.ctx.arc(centerX + eyeOffsetX - pupilSize * 0.3, centerY + eyeOffsetY - pupilSize * 0.3, highlightSize, 0, Math.PI * 2);
+        this.ctx.fill();
     }
     
     drawFluffyDave(playerY, legOffset, armOffset) {
@@ -1830,18 +1911,6 @@ class Game {
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = 'bold 28px Arial';
         this.ctx.fillText((this.speed / this.baseSpeed).toFixed(1) + 'X', 500, 65);
-        
-        // Character name (top right)
-        if (this.selectedCharacter) {
-            this.ctx.fillStyle = '#ff69b4';
-            this.ctx.font = 'bold 32px Arial';
-            this.ctx.textAlign = 'right';
-            this.ctx.fillText('PLAYING AS', this.canvas.width - 30, 35);
-            
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = 'bold 28px Arial';
-            this.ctx.fillText(this.characters[this.selectedCharacter].name.toUpperCase(), this.canvas.width - 30, 65);
-        }
         
         // City Lighting Level indicator (mid-top)
         this.ctx.fillStyle = '#ffd700';

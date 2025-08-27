@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Things Energy Dash</title>
+    <title>Energy Dash</title>
     <style>
         body {
             margin: 0;
@@ -48,46 +48,6 @@
 
         .hidden {
             display: none !important;
-        }
-
-        .character-select {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin: 20px 0;
-        }
-
-        .character-btn {
-            background: linear-gradient(45deg, #0066cc, #00aaff);
-            color: white;
-            border: 2px solid #00ff80;
-            padding: 20px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 1.2em;
-            font-weight: bold;
-            transition: all 0.3s ease;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-
-        .character-btn:hover {
-            background: linear-gradient(45deg, #00aaff, #00ddff);
-            transform: scale(1.05) translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,255,255,0.4);
-        }
-
-        .character-btn.selected {
-            background: linear-gradient(45deg, #00ff80, #00cc66);
-            color: #003d7a;
-            border-color: #ffffff;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { box-shadow: 0 0 10px rgba(0,255,128,0.5); }
-            50% { box-shadow: 0 0 25px rgba(0,255,128,1); }
-            100% { box-shadow: 0 0 10px rgba(0,255,128,0.5); }
         }
 
         .btn {
@@ -174,27 +134,13 @@
 </head>
 <body>
     <div class="game-container">
-        <div class="arcade-title">THE THINGS ENERGY DASH</div>
+        <div class="arcade-title">ENERGY DASH</div>
         
         <canvas id="gameCanvas" width="1400" height="800"></canvas>
 
         <div id="startMenu" class="menu">
-            <h2 style="color: #00ff80; font-size: 2.5em; margin-bottom: 30px;">SELECT YOUR CHARACTER</h2>
-            <div class="character-select">
-                <button class="character-btn" data-character="dave">
-                    Dave<br><small>(Big Softie)</small>
-                </button>
-                <button class="character-btn" data-character="mel">
-                    Mel<br><small>(Coffee Lover)</small>
-                </button>
-                <button class="character-btn" data-character="ash">
-                    Ash<br><small>(Tech Support)</small>
-                </button>
-                <button class="character-btn" data-character="charlie">
-                    Charlie & Riley<br><small>(Double Trouble)</small>
-                </button>
-            </div>
-            <button id="startBtn" class="btn" disabled>START GAME</button>
+            <h2 style="color: #00ff80; font-size: 2.5em; margin-bottom: 30px;">ENERGY DASH</h2>
+            <button id="startBtn" class="btn">START GAME</button>
             
             <div class="instructions">
                 <h3 style="color: #00aaff;">HOW TO PLAY</h3>
