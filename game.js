@@ -11,11 +11,33 @@ class Game {
         this.gameState = 'menu'; // menu, playing, gameOver, leaderboard
         this.selectedCharacter = null;
         
+        // Performance monitoring
+        this.performanceMetrics = {
+            frameCount: 0,
+            lastTime: performance.now(),
+            fps: 0,
+            renderTime: 0,
+            updateTime: 0,
+            maxRenderTime: 0,
+            maxUpdateTime: 0,
+            frameTimes: [],
+            renderBreakdown: {
+                skyGradient: 0,
+                clouds: 0,
+                buildings: 0,
+                stars: 0,
+                ground: 0,
+                gameObjects: 0,
+                ui: 0
+            }
+        };
+        this.showPerformanceOverlay = false;
+        
         // Game variables
         this.score = 0;
         this.distance = 0;
-        this.speed = 3.5;
-        this.baseSpeed = 3.5;
+        this.speed = 6.5; // Increased from 3.5 for faster start
+        this.baseSpeed = 6.5; // Increased from 3.5 for faster start
         this.gravity = 0.7;
         this.jumpPower = -16;
         this.gameTime = 0;
@@ -26,8 +48,8 @@ class Game {
         this.player = {
             x: 100,
             y: 300,
-            width: 50,
-            height: 70,
+            width: 75,  // Increased from 50
+            height: 105, // Increased from 70
             velocityY: 0,
             isJumping: false,
             isGrounded: true,
@@ -46,11 +68,15 @@ class Game {
         this.clouds = [];
         this.buildings = [];
         this.particles = [];
+        this.grassTufts = [];
+        this.pebbles = [];
         
         // Spawn timers
         this.obstacleSpawnTimer = 0;
         this.collectibleSpawnTimer = 0;
         this.particleTimer = 0;
+        this.grassSpawnTimer = 0;
+        this.pebbleSpawnTimer = 0;
         
         // Character data
         this.characters = {
@@ -62,10 +88,10 @@ class Game {
         
         // Obstacle types - All cardboard boxes with different sizes
         this.obstacleTypes = [
-            { type: 'small_box', width: 40, height: 35, color: '#deb887', shadow: '#cd853f', points: 5 },
-            { type: 'medium_box', width: 50, height: 45, color: '#d2b48c', shadow: '#bc9a6a', points: 8 },
-            { type: 'large_box', width: 60, height: 55, color: '#f5deb3', shadow: '#ddd0a3', points: 12 },
-            { type: 'tall_box', width: 45, height: 65, color: '#daa520', shadow: '#b8860b', points: 10 }
+            { type: 'small_box', width: 35, height: 30, color: '#deb887', shadow: '#cd853f', points: 5 },    // Reduced from 60x53
+            { type: 'medium_box', width: 45, height: 40, color: '#d2b48c', shadow: '#bc9a6a', points: 8 },  // Reduced from 75x68
+            { type: 'large_box', width: 55, height: 50, color: '#f5deb3', shadow: '#ddd0a3', points: 12 },  // Reduced from 90x83
+            { type: 'tall_box', width: 40, height: 60, color: '#daa520', shadow: '#b8860b', points: 10 }    // Reduced from 68x98
         ];
         
         // Collectible types - All energy symbols with different values
@@ -76,10 +102,16 @@ class Game {
             { type: 'gold_energy', symbol: '⚡', points: 100, color: '#ffd700', rarity: 0.1 }
         ];
         
+        // City lighting system
+        this.cityLightLevel = 0.0; // Start with all lights off
+        this.energyCollected = 0;
+        this.maxLightLevel = 0.95; // Maximum 95% of lights can be on
+        
         this.setupEventListeners();
         this.setupUI();
         this.generateBackground();
         this.generateClouds();
+        this.generateStars();
         
         // Initialize menu visibility
         this.showMenu();
@@ -102,6 +134,11 @@ class Game {
             if (e.code === 'Space' || e.code === 'ArrowUp') {
                 e.preventDefault();
                 this.jump();
+            }
+            // Performance overlay toggle
+            if (e.code === 'KeyP' && e.ctrlKey) {
+                e.preventDefault();
+                this.showPerformanceOverlay = !this.showPerformanceOverlay;
             }
         });
         
@@ -179,9 +216,19 @@ class Game {
         this.obstacles = [];
         this.collectibles = [];
         this.particles = [];
+        this.grassTufts = [];
+        this.pebbles = [];
         this.obstacleSpawnTimer = 0;
         this.collectibleSpawnTimer = 0;
         this.particleTimer = 0;
+        this.grassSpawnTimer = 0;
+        this.pebbleSpawnTimer = 0;
+        
+        // Reset lighting system
+        this.cityLightLevel = 0.0; // Start with all lights off
+        this.energyCollected = 0;
+        this.resetBuildingLights();
+        
         this.updateUI();
     }
     
@@ -245,8 +292,8 @@ class Game {
             x: this.canvas.width,
             y: baseY,
             baseY: baseY, // Store original Y for floating animation
-            width: 35,
-            height: 35,
+            width: 53,   // Increased from 35
+            height: 53,  // Increased from 35
             type: selectedType.type,
             symbol: selectedType.symbol,
             points: selectedType.points,
@@ -257,15 +304,53 @@ class Game {
         this.collectibles.push(collectible);
     }
     
+    spawnGrassTuft() {
+        // Create grass tuft at ground level
+        const grassTuft = {
+            x: this.canvas.width,
+            y: this.groundY - 5, // Slightly above ground
+            width: 8 + Math.random() * 6, // 8-14 pixels wide
+            height: 8 + Math.random() * 10, // 8-18 pixels tall
+            swayOffset: Math.random() * Math.PI * 2, // For swaying animation
+            blades: Math.floor(3 + Math.random() * 4), // 3-6 grass blades
+            color: ['#228b22', '#32cd32', '#006400'][Math.floor(Math.random() * 3)]
+        };
+        
+        this.grassTufts.push(grassTuft);
+    }
+    
+    spawnPebble() {
+        // Create pebble embedded deeper in the soil
+        const pebble = {
+            x: this.canvas.width,
+            y: this.groundY + 15 + Math.random() * 25, // Embedded deeper: 15-40 pixels below ground surface
+            size: 3 + Math.random() * 6, // Slightly smaller: 3-9 pixels
+            // Soil-appropriate colors - darker and lighter browns than the dirt (#8B4513)
+            color: [
+                '#5D2F0A', // Darker brown
+                '#4A2507', // Very dark brown
+                '#6B3710', // Medium dark brown
+                '#A0522D', // Lighter brown
+                '#CD853F', // Light brown/tan
+                '#DEB887'  // Very light brown
+            ][Math.floor(Math.random() * 6)],
+            shape: Math.random() > 0.5 ? 'round' : 'oval',
+            opacity: 0.3 + Math.random() * 0.4 // Random transparency: 30-70% opacity
+        };
+        
+        this.pebbles.push(pebble);
+    }
+    
     generateBackground() {
-        // Generate buildings with better variety
+        // Generate buildings with much better variety
         this.buildings = [];
-        for (let i = 0; i < 15; i++) {
-            const height = 60 + Math.random() * 120;
+        // Generate fewer buildings for better performance
+        for (let i = 0; i < 15; i++) {  // Reduced from 25
+            const height = 60 + Math.random() * 300;
             const building = {
-                x: i * 120 + Math.random() * 40,
+                x: i * 120 + Math.random() * 60,
                 y: this.groundY - height,
-                width: 80 + Math.random() * 40,
+                width: 90 + Math.random() * 90,
                 height: height,
                 color: this.getRandomBuildingColor(),
                 windowPattern: Math.floor(Math.random() * 3),
@@ -282,7 +367,7 @@ class Game {
                     building.windows.push({
                         x: col * (building.width / cols) - 4,
                         y: row * (building.height / rows) - 4,
-                        lit: Math.random() > 0.2 // 80% chance of being lit
+                        lit: Math.random() < this.cityLightLevel // Use lighting system
                     });
                 }
             }
@@ -292,39 +377,164 @@ class Game {
     }
     
     generateClouds() {
-        // Generate fluffy clouds
+        // Generate multiple layers of clouds for depth - MORE CLOUDS!
         this.clouds = [];
-        for (let i = 0; i < 8; i++) {
+        
+        // Background clouds (far, slow, subtle) - Reduced for performance
+        for (let i = 0; i < 6; i++) {  // Reduced from 12
             this.clouds.push({
                 x: i * 200 + Math.random() * 100,
-                y: 30 + Math.random() * 80,
-                size: 40 + Math.random() * 30,
-                speed: 0.2 + Math.random() * 0.3,
-                opacity: 0.6 + Math.random() * 0.3
+                y: 20 + Math.random() * 120,
+                size: 75 + Math.random() * 60,
+                speed: 0.1 + Math.random() * 0.15,
+                opacity: 0.3 + Math.random() * 0.25,
+                layer: 'back'
+            });
+        }
+        
+        // Mid-layer clouds - Reduced for performance
+        for (let i = 0; i < 8; i++) {  // Reduced from 15
+            this.clouds.push({
+                x: i * 180 + Math.random() * 90,
+                y: 30 + Math.random() * 140,
+                size: 60 + Math.random() * 75,
+                speed: 0.2 + Math.random() * 0.25,
+                opacity: 0.5 + Math.random() * 0.3,
+                layer: 'mid'
+            });
+        }
+        
+        // Foreground clouds (closer, faster, more opaque) - Reduced for performance
+        for (let i = 0; i < 5; i++) {  // Reduced from 10
+            this.clouds.push({
+                x: i * 250 + Math.random() * 125,
+                y: 25 + Math.random() * 100,
+                size: 68 + Math.random() * 83,
+                speed: 0.3 + Math.random() * 0.4,
+                opacity: 0.6 + Math.random() * 0.4,
+                layer: 'front'
+            });
+        }
+        
+        // Extra small wispy clouds - Reduced for performance
+        for (let i = 0; i < 10; i++) {  // Reduced from 20
+            this.clouds.push({
+                x: i * 150 + Math.random() * 75,
+                y: 15 + Math.random() * 160,
+                size: 38 + Math.random() * 53,
+                speed: 0.15 + Math.random() * 0.2,
+                opacity: 0.2 + Math.random() * 0.3,
+                layer: 'wispy'
+            });
+        }
+    }
+    
+    generateStars() {
+        // Generate beautiful dusk stars - Reduced for performance
+        this.stars = [];
+        
+        // Small twinkling stars
+        for (let i = 0; i < 40; i++) {  // Reduced from 80
+            this.stars.push({
+                x: Math.random() * this.canvas.width * 2, // Cover wider area
+                y: Math.random() * this.canvas.height * 0.6, // Only in upper sky
+                size: 2 + Math.random() * 3,
+                brightness: 0.3 + Math.random() * 0.7,
+                twinkleOffset: Math.random() * Math.PI * 2,
+                twinkleSpeed: 0.02 + Math.random() * 0.03
+            });
+        }
+        
+        // Brighter stars
+        for (let i = 0; i < 20; i++) {
+            this.stars.push({
+                x: Math.random() * this.canvas.width * 2,
+                y: Math.random() * this.canvas.height * 0.5, // Higher in sky
+                size: 2 + Math.random() * 3,
+                brightness: 0.6 + Math.random() * 0.4,
+                twinkleOffset: Math.random() * Math.PI * 2,
+                twinkleSpeed: 0.01 + Math.random() * 0.02
             });
         }
     }
     
     getRandomBuildingColor() {
         const colors = [
-            '#b0c4de', '#d3d3d3', '#f0f8ff', '#e6e6fa', 
-            '#ffefd5', '#fff8dc', '#f5f5dc', '#faf0e6'
+            '#2c3e50', '#34495e', '#5d4e75', '#4a6741', 
+            '#8b7355', '#6b705c', '#7f8471', '#5a6a62',
+            '#4a5568', '#2d3748', '#553c9a', '#6f42c1'
         ];
         return colors[Math.floor(Math.random() * colors.length)];
     }
     
     createParticle(x, y, type = 'collect') {
-        const colors = type === 'collect' ? ['#ffd700', '#ffff00', '#00ff00'] : ['#ff6b6b', '#ff4444'];
-        this.particles.push({
-            x: x,
-            y: y,
-            velocityX: (Math.random() - 0.5) * 4,
-            velocityY: -Math.random() * 3 - 2,
-            life: 30,
-            maxLife: 30,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            size: 3 + Math.random() * 3
-        });
+        if (type === 'collect') {
+            // Create a spectacular collection effect with many particles
+            const particleCount = 15 + Math.random() * 10; // 15-25 particles
+            
+            for (let i = 0; i < particleCount; i++) {
+                // Multiple particle types for variety
+                const particleType = Math.random();
+                
+                if (particleType < 0.4) {
+                    // Sparkle particles - fast, bright, small
+                    this.particles.push({
+                        x: x + (Math.random() - 0.5) * 20,
+                        y: y + (Math.random() - 0.5) * 20,
+                        velocityX: (Math.random() - 0.5) * 8,
+                        velocityY: -Math.random() * 6 - 2,
+                        life: 45 + Math.random() * 15,
+                        maxLife: 45 + Math.random() * 15,
+                        color: ['#ffd700', '#ffff00', '#ffffff', '#00ffff'][Math.floor(Math.random() * 4)],
+                        size: 2 + Math.random() * 2,
+                        type: 'sparkle',
+                        twinkle: Math.random() * Math.PI * 2
+                    });
+                } else if (particleType < 0.7) {
+                    // Energy orbs - slower, larger, glowing
+                    this.particles.push({
+                        x: x + (Math.random() - 0.5) * 15,
+                        y: y + (Math.random() - 0.5) * 15,
+                        velocityX: (Math.random() - 0.5) * 4,
+                        velocityY: -Math.random() * 4 - 1,
+                        life: 60 + Math.random() * 20,
+                        maxLife: 60 + Math.random() * 20,
+                        color: ['#00ff00', '#32cd32', '#7fff00'][Math.floor(Math.random() * 3)],
+                        size: 4 + Math.random() * 4,
+                        type: 'orb',
+                        pulse: Math.random() * Math.PI * 2
+                    });
+                } else {
+                    // Lightning particles - angular, electric
+                    this.particles.push({
+                        x: x + (Math.random() - 0.5) * 25,
+                        y: y + (Math.random() - 0.5) * 25,
+                        velocityX: (Math.random() - 0.5) * 10,
+                        velocityY: -Math.random() * 5 - 3,
+                        life: 30 + Math.random() * 10,
+                        maxLife: 30 + Math.random() * 10,
+                        color: ['#00bfff', '#1e90ff', '#87ceeb'][Math.floor(Math.random() * 3)],
+                        size: 1 + Math.random() * 3,
+                        type: 'lightning',
+                        zigzag: Math.random() * 10
+                    });
+                }
+            }
+        } else {
+            // Simple collision particles
+            const colors = ['#ff6b6b', '#ff4444'];
+            this.particles.push({
+                x: x,
+                y: y,
+                velocityX: (Math.random() - 0.5) * 4,
+                velocityY: -Math.random() * 3 - 2,
+                life: 30,
+                maxLife: 30,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                size: 3 + Math.random() * 3,
+                type: 'simple'
+            });
+        }
     }
     
     updateGame() {
@@ -335,35 +545,53 @@ class Game {
         for (let building of this.buildings) {
             building.x -= building.speed * 0.5; // Slower when not playing
             if (building.x + building.width < 0) {
-                building.x = this.canvas.width + Math.random() * 200;
-                building.height = 60 + Math.random() * 120;
+                building.x = this.canvas.width + Math.random() * 100;
+                building.height = 40 + Math.random() * 200; // More varied heights
                 building.y = this.groundY - building.height;
                 building.color = this.getRandomBuildingColor();
                 
-                // Regenerate windows for the new building
-                building.windows = [];
-                const rows = Math.floor(building.height / 25);
-                const cols = Math.floor(building.width / 20);
-                
-                for (let row = 1; row < rows; row++) {
-                    for (let col = 1; col < cols; col++) {
-                        building.windows.push({
-                            x: col * (building.width / cols) - 4,
-                            y: row * (building.height / rows) - 4,
-                            lit: Math.random() > 0.2 // 80% chance of being lit
-                        });
+                // Only regenerate windows occasionally to prevent stuttering
+                if (this.gameTime % 60 === 0 || building.windows.length === 0) {
+                    // Regenerate windows for the new building
+                    building.windows = [];
+                    const rows = Math.floor(building.height / 25);
+                    const cols = Math.floor(building.width / 20);
+                    
+                    for (let row = 1; row < rows; row++) {
+                        for (let col = 1; col < cols; col++) {
+                            building.windows.push({
+                                x: col * (building.width / cols) - 4,
+                                y: row * (building.height / rows) - 4,
+                                lit: Math.random() < this.cityLightLevel // Use current lighting level
+                            });
+                        }
                     }
                 }
             }
         }
         
-        // Update clouds (always animate)
+        // Update clouds (always animate) - now with more cloud types
         for (let cloud of this.clouds) {
             cloud.x -= cloud.speed * 0.3; // Slower when not playing
             if (cloud.x + cloud.size * 2 < 0) {
-                cloud.x = this.canvas.width + Math.random() * 300;
-                cloud.y = 30 + Math.random() * 80;
-                cloud.size = 40 + Math.random() * 30;
+                // Reset cloud position with appropriate spacing based on layer
+                if (cloud.layer === 'wispy') {
+                    cloud.x = this.canvas.width + Math.random() * 200;
+                    cloud.y = 15 + Math.random() * 160;
+                    cloud.size = 25 + Math.random() * 35;
+                } else if (cloud.layer === 'back') {
+                    cloud.x = this.canvas.width + Math.random() * 300;
+                    cloud.y = 20 + Math.random() * 120;
+                    cloud.size = 50 + Math.random() * 40;
+                } else if (cloud.layer === 'mid') {
+                    cloud.x = this.canvas.width + Math.random() * 250;
+                    cloud.y = 30 + Math.random() * 140;
+                    cloud.size = 40 + Math.random() * 50;
+                } else if (cloud.layer === 'front') {
+                    cloud.x = this.canvas.width + Math.random() * 400;
+                    cloud.y = 25 + Math.random() * 100;
+                    cloud.size = 45 + Math.random() * 55;
+                }
             }
         }
         
@@ -379,6 +607,12 @@ class Game {
         this.backgroundOffset += this.speed * 0.3;
         this.cloudOffset += this.speed * 0.1;
         
+        // Update star twinkling
+        for (let star of this.stars) {
+            // Slow, gentle twinkling effect
+            star.brightness = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(this.gameTime * 0.002 + star.x * 0.01));
+        }
+        
         // Update player animation
         this.player.runCycle += this.speed * 0.2;
         
@@ -387,7 +621,7 @@ class Game {
         
         // Spawn obstacles
         this.obstacleSpawnTimer++;
-        const obstacleSpawnRate = Math.max(120 - this.gameTime * 0.015, 60); // Slower spawn rate, more spacing
+        const obstacleSpawnRate = Math.max(90 - this.gameTime * 0.015, 45); // Adjusted for faster speed: 90-45 frames (was 120-60)
         if (this.obstacleSpawnTimer > obstacleSpawnRate) {
             this.spawnObstacle();
             this.obstacleSpawnTimer = 0;
@@ -395,11 +629,29 @@ class Game {
         
         // Spawn collectibles
         this.collectibleSpawnTimer++;
-        if (this.collectibleSpawnTimer > 200) { // Less frequent than obstacles
+        if (this.collectibleSpawnTimer > 150) { // Slightly more frequent due to faster speed (was 200)
             if (Math.random() < 0.6) { // 60% chance to spawn
                 this.spawnCollectible();
             }
             this.collectibleSpawnTimer = 0;
+        }
+        
+        // Spawn grass tufts (decorative)
+        this.grassSpawnTimer++;
+        if (this.grassSpawnTimer > 80 + Math.random() * 40) { // Random interval 80-120 frames
+            if (Math.random() < 0.7) { // 70% chance to spawn
+                this.spawnGrassTuft();
+            }
+            this.grassSpawnTimer = 0;
+        }
+        
+        // Spawn pebbles (decorative)
+        this.pebbleSpawnTimer++;
+        if (this.pebbleSpawnTimer > 150 + Math.random() * 100) { // Longer interval: 150-250 frames
+            if (Math.random() < 0.3) { // Reduced chance: 30% to spawn
+                this.spawnPebble();
+            }
+            this.pebbleSpawnTimer = 0;
         }
         
         // Update obstacles
@@ -435,6 +687,11 @@ class Game {
             // Check collection
             else if (this.checkCollision(this.player, collectible)) {
                 this.score += collectible.points;
+                this.energyCollected += collectible.points;
+                
+                // Update city lighting based on energy collected
+                this.updateCityLighting();
+                
                 this.createParticle(collectible.x + collectible.width/2, collectible.y + collectible.height/2, 'collect');
                 this.collectibles.splice(i, 1);
             }
@@ -446,7 +703,24 @@ class Game {
             const particle = this.particles[i];
             particle.x += particle.velocityX;
             particle.y += particle.velocityY;
-            particle.velocityY += 0.2; // Gravity
+            
+            // Different physics for different particle types
+            if (particle.type === 'sparkle') {
+                particle.velocityY += 0.15; // Light gravity
+                particle.twinkle += 0.2; // Twinkling animation
+                particle.velocityX *= 0.98; // Air resistance
+            } else if (particle.type === 'orb') {
+                particle.velocityY += 0.1; // Very light gravity
+                particle.pulse += 0.15; // Pulsing animation
+                particle.velocityX *= 0.99; // Minimal air resistance
+            } else if (particle.type === 'lightning') {
+                particle.velocityY += 0.25; // Normal gravity
+                particle.velocityX += Math.sin(particle.zigzag) * 0.5; // Zigzag motion
+                particle.zigzag += 0.3;
+            } else {
+                particle.velocityY += 0.2; // Standard gravity for simple particles
+            }
+            
             particle.life--;
             
             if (particle.life <= 0) {
@@ -454,16 +728,85 @@ class Game {
             }
         }
         
+        // Update grass tufts
+        for (let i = this.grassTufts.length - 1; i >= 0; i--) {
+            const grass = this.grassTufts[i];
+            grass.x -= this.speed;
+            grass.swayOffset += 0.02; // Slow swaying animation
+            
+            // Remove off-screen grass
+            if (grass.x + grass.width < 0) {
+                this.grassTufts.splice(i, 1);
+            }
+        }
+        
+        // Update pebbles
+        for (let i = this.pebbles.length - 1; i >= 0; i--) {
+            const pebble = this.pebbles[i];
+            pebble.x -= this.speed;
+            
+            // Remove off-screen pebbles
+            if (pebble.x + pebble.size < 0) {
+                this.pebbles.splice(i, 1);
+            }
+        }
+        
         this.updateUI();
     }
     
     checkCollision(rect1, rect2) {
-        // Add a small margin to make collisions more forgiving
-        const margin = 3;
+        // Use smaller margin for more accurate collision detection
+        const margin = 1;
         return rect1.x + margin < rect2.x + rect2.width &&
                rect1.x + rect1.width - margin > rect2.x &&
                rect1.y + margin < rect2.y + rect2.height &&
                rect1.y + rect1.height - margin > rect2.y;
+    }
+    
+    updateCityLighting() {
+        // Calculate new light level based on energy collected
+        // Every 25 energy points increases lighting by 10% (much faster progression)
+        const lightIncrease = Math.floor(this.energyCollected / 25) * 0.1;
+        this.cityLightLevel = Math.min(this.maxLightLevel, lightIncrease);
+        
+        // Update lights immediately when energy is collected
+        this.updateBuildingLights();
+    }
+    
+    updateBuildingLights() {
+        // More aggressive lighting update for immediate visual feedback
+        const targetLightLevel = this.cityLightLevel;
+        
+        if (targetLightLevel > 0) {
+            for (let building of this.buildings) {
+                // Calculate current light percentage for this building
+                const totalWindows = building.windows.length;
+                const litWindows = building.windows.filter(w => w.lit).length;
+                const currentLevel = totalWindows > 0 ? litWindows / totalWindows : 0;
+                
+                // If we're below target level, light up more windows
+                if (currentLevel < targetLightLevel) {
+                    const windowsToLight = Math.ceil((targetLightLevel - currentLevel) * totalWindows);
+                    let lit = 0;
+                    
+                    for (let window of building.windows) {
+                        if (!window.lit && lit < windowsToLight) {
+                            window.lit = true;
+                            lit++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    resetBuildingLights() {
+        // Reset all building lights to initial state
+        for (let building of this.buildings) {
+            for (let window of building.windows) {
+                window.lit = Math.random() < this.cityLightLevel;
+            }
+        }
     }
     
     gameOver() {
@@ -474,31 +817,116 @@ class Game {
     }
     
     render() {
-        // Clear canvas with gradient sky
+        let phaseStartTime, phaseEndTime;
+        
+        // Clear canvas with dusk/twilight gradient sky
+        phaseStartTime = performance.now();
         const gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-        gradient.addColorStop(0, '#87ceeb');
-        gradient.addColorStop(0.7, '#b0e0e6');
-        gradient.addColorStop(1, '#98fb98');
+        gradient.addColorStop(0, '#1a1a2e');      // Dark blue-purple at top
+        gradient.addColorStop(0.2, '#16213e');    // Deep twilight blue
+        gradient.addColorStop(0.4, '#0f4c75');    // Medium blue
+        gradient.addColorStop(0.6, '#3282b8');    // Lighter blue
+        gradient.addColorStop(0.8, '#ff6b6b');    // Sunset orange/pink
+        gradient.addColorStop(0.9, '#ffa726');    // Golden orange
+        gradient.addColorStop(1, '#2d5016');      // Dark green ground level
         this.ctx.fillStyle = gradient;
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.skyGradient = phaseEndTime - phaseStartTime;
         
-        // Draw clouds with proper layering
+        // Draw clouds with timing
+        phaseStartTime = performance.now();
+        // Draw wispy clouds first (furthest back)
         this.ctx.save();
         for (let cloud of this.clouds) {
-            this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.opacity);
+            if (cloud.layer === 'wispy') {
+                this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.opacity);
+            }
         }
         this.ctx.restore();
         
-        // Draw buildings with depth
+        // Draw background clouds
+        this.ctx.save();
+        for (let cloud of this.clouds) {
+            if (cloud.layer === 'back') {
+                this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.opacity);
+            }
+        }
+        this.ctx.restore();
+        
+        // Draw mid-layer clouds
+        this.ctx.save();
+        for (let cloud of this.clouds) {
+            if (cloud.layer === 'mid') {
+                this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.opacity);
+            }
+        }
+        this.ctx.restore();
+        
+        // Draw foreground clouds
+        this.ctx.save();
+        for (let cloud of this.clouds) {
+            if (cloud.layer === 'front') {
+                this.drawCloud(cloud.x, cloud.y, cloud.size, cloud.opacity);
+            }
+        }
+        this.ctx.restore();
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.clouds = phaseEndTime - phaseStartTime;
+        
+        // Draw buildings with timing
+        phaseStartTime = performance.now();
         for (let building of this.buildings) {
             this.drawBuilding(building);
         }
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.buildings = phaseEndTime - phaseStartTime;
         
-        // Draw ground with texture
+        // Draw stars with timing
+        phaseStartTime = performance.now();
+        this.ctx.save();
+        for (let star of this.stars) {
+            this.drawStar(star.x, star.y, star.size, star.brightness);
+        }
+        this.ctx.restore();
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.stars = phaseEndTime - phaseStartTime;
+        
+        // Draw ground with timing
+        phaseStartTime = performance.now();
         this.drawGround();
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.ground = phaseEndTime - phaseStartTime;
         
+        // Draw game objects with timing
+        phaseStartTime = performance.now();
         // Only draw game elements when playing
         if (this.gameState === 'playing') {
+            // Count objects for performance monitoring
+            const objectCounts = {
+                obstacles: this.obstacles.length,
+                collectibles: this.collectibles.length,
+                particles: this.particles.length,
+                clouds: this.clouds.length,
+                buildings: this.buildings.length,
+                stars: this.stars.length,
+                grassTufts: this.grassTufts.length,
+                pebbles: this.pebbles.length
+            };
+            
+            // Store counts for performance overlay
+            this.performanceMetrics.objectCounts = objectCounts;
+            
+            // Draw grass tufts (behind other objects)
+            for (let grass of this.grassTufts) {
+                this.drawGrassTuft(grass);
+            }
+            
+            // Draw pebbles (behind other objects)
+            for (let pebble of this.pebbles) {
+                this.drawPebble(pebble);
+            }
+            
             // Draw obstacles with improved graphics
             for (let obstacle of this.obstacles) {
                 this.drawObstacle(obstacle);
@@ -517,49 +945,72 @@ class Game {
             // Draw player with animation
             this.drawPlayer();
         }
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.gameObjects = phaseEndTime - phaseStartTime;
         
-        // Draw arcade-style UI overlay
+        // Draw UI with timing
+        phaseStartTime = performance.now();
         this.drawArcadeUI();
+        
+        // Draw performance overlay if enabled
+        if (this.showPerformanceOverlay) {
+            this.drawPerformanceOverlay();
+        }
+        phaseEndTime = performance.now();
+        this.performanceMetrics.renderBreakdown.ui = phaseEndTime - phaseStartTime;
     }
     
     drawCloud(x, y, size, opacity) {
         this.ctx.save();
-        this.ctx.globalAlpha = opacity;
+        this.ctx.globalAlpha = opacity * 0.3; // More transparent
         
-        // Create a more natural cloud shape with overlapping circles
-        const cloudParts = [
-            { x: 0, y: 0, r: size * 0.5 },
-            { x: size * 0.3, y: size * 0.1, r: size * 0.4 },
-            { x: size * 0.6, y: 0, r: size * 0.35 },
-            { x: size * 0.2, y: -size * 0.15, r: size * 0.25 },
-            { x: size * 0.5, y: -size * 0.1, r: size * 0.2 },
-            { x: size * 0.8, y: size * 0.05, r: size * 0.15 }
+        // Simple cloud using just 3 circles
+        this.ctx.fillStyle = 'rgba(245, 248, 255, 0.5)'; // More transparent color
+        
+        // Define minimal cloud puffs - just 3 circles
+        const puffs = [
+            { x: size * 0.25, y: size * 0.3, r: size * 0.35 },  // Left
+            { x: size * 0.5, y: size * 0.15, r: size * 0.4 },   // Center (main)
+            { x: size * 0.75, y: size * 0.3, r: size * 0.3 }    // Right
         ];
         
-        // Draw cloud shadow first
-        this.ctx.fillStyle = 'rgba(200, 200, 200, 0.3)';
-        for (let part of cloudParts) {
+        // Draw simple cloud structure
+        for (let puff of puffs) {
             this.ctx.beginPath();
-            this.ctx.arc(x + part.x + 2, y + part.y + 2, part.r, 0, Math.PI * 2);
+            this.ctx.arc(x + puff.x, y + puff.y, puff.r, 0, Math.PI * 2);
             this.ctx.fill();
         }
         
-        // Draw main cloud
-        this.ctx.fillStyle = '#ffffff';
-        for (let part of cloudParts) {
-            this.ctx.beginPath();
-            this.ctx.arc(x + part.x, y + part.y, part.r, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
+        this.ctx.restore();
+    }
+    
+    drawStar(x, y, size, brightness) {
+        this.ctx.save();
         
-        // Add subtle highlight
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        for (let i = 0; i < 3; i++) {
-            const part = cloudParts[i];
-            this.ctx.beginPath();
-            this.ctx.arc(x + part.x - part.r * 0.2, y + part.y - part.r * 0.2, part.r * 0.3, 0, Math.PI * 2);
-            this.ctx.fill();
-        }
+        // Set star color with brightness variation
+        const alpha = 0.3 + (brightness * 0.7); // Range from 0.3 to 1.0
+        this.ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+        
+        // Draw a simple cross-shaped star
+        this.ctx.beginPath();
+        
+        // Vertical line
+        this.ctx.moveTo(x, y - size);
+        this.ctx.lineTo(x, y + size);
+        
+        // Horizontal line
+        this.ctx.moveTo(x - size, y);
+        this.ctx.lineTo(x + size, y);
+        
+        this.ctx.strokeStyle = this.ctx.fillStyle;
+        this.ctx.lineWidth = size * 0.3;
+        this.ctx.lineCap = 'round';
+        this.ctx.stroke();
+        
+        // Add a small center dot
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, size * 0.2, 0, Math.PI * 2);
+        this.ctx.fill();
         
         this.ctx.restore();
     }
@@ -612,27 +1063,36 @@ class Game {
     }
     
     drawGround() {
-        // Ground base
-        this.ctx.fillStyle = '#228b22';
+        // Underground dirt layer
+        const dirtGradient = this.ctx.createLinearGradient(0, this.groundY, 0, this.canvas.height);
+        dirtGradient.addColorStop(0, '#8B4513');
+        dirtGradient.addColorStop(0.3, '#654321');
+        dirtGradient.addColorStop(1, '#3E2723');
+        this.ctx.fillStyle = dirtGradient;
         this.ctx.fillRect(0, this.groundY, this.canvas.width, this.canvas.height - this.groundY);
         
-        // Ground texture lines
-        this.ctx.strokeStyle = '#32cd32';
-        this.ctx.lineWidth = 1;
-        for (let i = 0; i < this.canvas.width; i += 20) {
-            const x = (i - this.backgroundOffset) % this.canvas.width;
-            this.ctx.beginPath();
-            this.ctx.moveTo(x, this.groundY + 5);
-            this.ctx.lineTo(x + 10, this.groundY + 5);
-            this.ctx.stroke();
-        }
+        // Main grass surface with richer gradient
+        const grassGradient = this.ctx.createLinearGradient(0, this.groundY - 15, 0, this.groundY + 5);
+        grassGradient.addColorStop(0, '#32cd32');
+        grassGradient.addColorStop(0.5, '#228b22');
+        grassGradient.addColorStop(1, '#006400');
+        this.ctx.fillStyle = grassGradient;
+        this.ctx.fillRect(0, this.groundY - 15, this.canvas.width, 20);
         
-        // Ground border
-        this.ctx.strokeStyle = '#ffffff';
-        this.ctx.lineWidth = 3;
+        // Platform-style ground border/edge
+        this.ctx.strokeStyle = '#228B22';
+        this.ctx.lineWidth = 4;
         this.ctx.beginPath();
         this.ctx.moveTo(0, this.groundY);
         this.ctx.lineTo(this.canvas.width, this.groundY);
+        this.ctx.stroke();
+        
+        // Add highlight on top of grass
+        this.ctx.strokeStyle = '#7FFF7F';
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.moveTo(0, this.groundY - 1);
+        this.ctx.lineTo(this.canvas.width, this.groundY - 1);
         this.ctx.stroke();
     }
     
@@ -788,11 +1248,153 @@ class Game {
     
     drawParticle(particle) {
         this.ctx.save();
-        this.ctx.globalAlpha = particle.life / particle.maxLife;
-        this.ctx.fillStyle = particle.color;
-        this.ctx.beginPath();
-        this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-        this.ctx.fill();
+        
+        const alpha = particle.life / particle.maxLife;
+        this.ctx.globalAlpha = alpha;
+        
+        if (particle.type === 'sparkle') {
+            // Twinkling sparkle effect
+            const twinkleAlpha = 0.5 + 0.5 * Math.sin(particle.twinkle);
+            this.ctx.globalAlpha = alpha * twinkleAlpha;
+            
+            // Sparkle with radiating lines
+            this.ctx.fillStyle = particle.color;
+            this.ctx.strokeStyle = particle.color;
+            this.ctx.lineWidth = 1;
+            
+            // Central dot
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Radiating lines for sparkle effect
+            const lineLength = particle.size * 2;
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 2) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(
+                    particle.x + Math.cos(angle) * particle.size,
+                    particle.y + Math.sin(angle) * particle.size
+                );
+                this.ctx.lineTo(
+                    particle.x + Math.cos(angle) * lineLength,
+                    particle.y + Math.sin(angle) * lineLength
+                );
+                this.ctx.stroke();
+            }
+            
+        } else if (particle.type === 'orb') {
+            // Pulsing energy orb with glow
+            const pulseSize = particle.size + Math.sin(particle.pulse) * 2;
+            
+            // Outer glow
+            const glow = this.ctx.createRadialGradient(
+                particle.x, particle.y, 0,
+                particle.x, particle.y, pulseSize * 2
+            );
+            glow.addColorStop(0, particle.color + 'AA');
+            glow.addColorStop(0.5, particle.color + '40');
+            glow.addColorStop(1, particle.color + '00');
+            
+            this.ctx.fillStyle = glow;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, pulseSize * 2, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Core orb
+            this.ctx.fillStyle = particle.color;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, pulseSize, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Bright center
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.globalAlpha = alpha * 0.7;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x - pulseSize * 0.3, particle.y - pulseSize * 0.3, pulseSize * 0.4, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+        } else if (particle.type === 'lightning') {
+            // Electric/lightning effect
+            this.ctx.strokeStyle = particle.color;
+            this.ctx.lineWidth = particle.size;
+            this.ctx.lineCap = 'round';
+            
+            // Draw jagged lightning bolt
+            this.ctx.beginPath();
+            this.ctx.moveTo(particle.x - 5, particle.y - 5);
+            this.ctx.lineTo(particle.x + 2, particle.y);
+            this.ctx.lineTo(particle.x - 2, particle.y + 2);
+            this.ctx.lineTo(particle.x + 5, particle.y + 5);
+            this.ctx.stroke();
+            
+            // Add electric glow
+            this.ctx.shadowColor = particle.color;
+            this.ctx.shadowBlur = 8;
+            this.ctx.stroke();
+            
+        } else {
+            // Simple particle (fallback)
+            this.ctx.fillStyle = particle.color;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
+        this.ctx.restore();
+    }
+    
+    drawGrassTuft(grass) {
+        this.ctx.save();
+        
+        // Calculate sway effect
+        const swayAmount = Math.sin(grass.swayOffset) * 2;
+        
+        for (let i = 0; i < grass.blades; i++) {
+            // Calculate blade position and properties
+            const bladeX = grass.x + (i / grass.blades) * grass.width;
+            const bladeHeight = grass.height * (0.7 + Math.random() * 0.3);
+            const bladeWidth = 1 + Math.random();
+            
+            // Apply sway to top of blade
+            const topX = bladeX + swayAmount * (i / grass.blades);
+            
+            // Draw grass blade
+            this.ctx.strokeStyle = grass.color;
+            this.ctx.lineWidth = bladeWidth;
+            this.ctx.lineCap = 'round';
+            
+            this.ctx.beginPath();
+            this.ctx.moveTo(bladeX, grass.y);
+            this.ctx.quadraticCurveTo(
+                bladeX + swayAmount * 0.5, 
+                grass.y - bladeHeight * 0.5,
+                topX, 
+                grass.y - bladeHeight
+            );
+            this.ctx.stroke();
+        }
+        
+        this.ctx.restore();
+    }
+    
+    drawPebble(pebble) {
+        this.ctx.save();
+        
+        // Apply transparency for subtle effect
+        this.ctx.globalAlpha = pebble.opacity;
+        
+        // Simple solid fill pebble - no borders, shadows, or highlights
+        this.ctx.fillStyle = pebble.color;
+        if (pebble.shape === 'round') {
+            this.ctx.beginPath();
+            this.ctx.arc(pebble.x, pebble.y, pebble.size, 0, Math.PI * 2);
+            this.ctx.fill();
+        } else {
+            this.ctx.beginPath();
+            this.ctx.ellipse(pebble.x, pebble.y, pebble.size, pebble.size * 0.7, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
+        
         this.ctx.restore();
     }
     
@@ -847,31 +1449,31 @@ class Game {
         const centerX = this.player.x + this.player.width / 2;
         const character = this.characters['dave'];
         
-        // Draw fluffy legs with movement
+        // Draw fluffy legs with movement - better positioned to connect to body
         this.ctx.fillStyle = character.color;
         
-        // Left leg (fluffy oval)
+        // Left leg (fluffy oval) - positioned to connect to body
         this.ctx.beginPath();
-        this.ctx.ellipse(this.player.x + 15, playerY + this.player.height - 15 + legOffset, 6, 12, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(this.player.x + 18, playerY + this.player.height - 18 + legOffset, 6, 15, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // Right leg (fluffy oval)
+        // Right leg (fluffy oval) - positioned to connect to body
         this.ctx.beginPath();
-        this.ctx.ellipse(this.player.x + 30, playerY + this.player.height - 15 - legOffset, 6, 12, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(this.player.x + 32, playerY + this.player.height - 18 - legOffset, 6, 15, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
         // Add fur texture to legs
-        this.drawFurTexture(this.player.x + 15, playerY + this.player.height - 15 + legOffset, 6);
-        this.drawFurTexture(this.player.x + 30, playerY + this.player.height - 15 - legOffset, 6);
+        this.drawFurTexture(this.player.x + 18, playerY + this.player.height - 18 + legOffset, 6);
+        this.drawFurTexture(this.player.x + 32, playerY + this.player.height - 18 - legOffset, 6);
         
-        // Main fluffy body (large oval)
+        // Main fluffy body (large oval) - positioned to overlap with legs
         this.ctx.fillStyle = character.color;
         this.ctx.beginPath();
-        this.ctx.ellipse(centerX, playerY + 30, 20, 25, 0, 0, Math.PI * 2);
+        this.ctx.ellipse(centerX, playerY + 32, 20, 28, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
         // Add fur texture to body
-        this.drawFurTexture(centerX, playerY + 30, 20);
+        this.drawFurTexture(centerX, playerY + 32, 20);
         
         // Fluffy arms with movement
         this.ctx.fillStyle = character.color;
@@ -949,23 +1551,23 @@ class Game {
     }
     
     drawRegularCharacter(character, playerY, legOffset, armOffset) {
-        // Draw legs (rounded rectangles)
+        // Draw legs (rounded rectangles) - better positioned to connect to body
         this.ctx.fillStyle = character.accent;
         
-        // Left leg
+        // Left leg - positioned to connect to body
         this.ctx.beginPath();
-        this.roundRect(this.ctx, this.player.x + 12, playerY + this.player.height - 25 + legOffset, 8, 25, 4);
+        this.roundRect(this.ctx, this.player.x + 15, playerY + this.player.height - 30 + legOffset, 8, 30, 4);
         this.ctx.fill();
         
-        // Right leg  
+        // Right leg - positioned to connect to body
         this.ctx.beginPath();
-        this.roundRect(this.ctx, this.player.x + 28, playerY + this.player.height - 25 - legOffset, 8, 25, 4);
+        this.roundRect(this.ctx, this.player.x + 32, playerY + this.player.height - 30 - legOffset, 8, 30, 4);
         this.ctx.fill();
         
-        // Main body (rounded rectangle)
+        // Main body (rounded rectangle) - positioned to overlap with legs
         this.ctx.fillStyle = character.color;
         this.ctx.beginPath();
-        this.roundRect(this.ctx, this.player.x + 8, playerY + 15, this.player.width - 16, this.player.height - 30, 8);
+        this.roundRect(this.ctx, this.player.x + 10, playerY + 15, this.player.width - 20, this.player.height - 25, 8);
         this.ctx.fill();
         
         // Arms (rounded rectangles)
@@ -973,12 +1575,12 @@ class Game {
         
         // Left arm
         this.ctx.beginPath();
-        this.roundRect(this.ctx, this.player.x - 2, playerY + 20 + armOffset, 12, 6, 3);
+        this.roundRect(this.ctx, this.player.x + 2, playerY + 20 + armOffset, 12, 6, 3);
         this.ctx.fill();
         
         // Right arm
         this.ctx.beginPath();
-        this.roundRect(this.ctx, this.player.x + this.player.width - 10, playerY + 20 - armOffset, 12, 6, 3);
+        this.roundRect(this.ctx, this.player.x + this.player.width - 14, playerY + 20 - armOffset, 12, 6, 3);
         this.ctx.fill();
         
         // Head (circle) - smaller and better proportioned
@@ -1103,6 +1705,95 @@ class Game {
         }
     }
     
+    drawMountain(mountain) {
+        this.ctx.save();
+        this.ctx.globalAlpha = mountain.opacity;
+        
+        // Simple triangular mountain shape with gradient
+        const gradient = this.ctx.createLinearGradient(mountain.x, mountain.y, mountain.x, mountain.y + mountain.height);
+        gradient.addColorStop(0, this.lightenColor(mountain.color, 0.2));
+        gradient.addColorStop(1, mountain.color);
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.moveTo(mountain.x, mountain.y + mountain.height);
+        this.ctx.lineTo(mountain.x + mountain.width/2, mountain.y);
+        this.ctx.lineTo(mountain.x + mountain.width, mountain.y + mountain.height);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        // Add some atmospheric detail
+        this.ctx.fillStyle = this.lightenColor(mountain.color, 0.4);
+        this.ctx.beginPath();
+        this.ctx.moveTo(mountain.x + mountain.width * 0.1, mountain.y + mountain.height * 0.7);
+        this.ctx.lineTo(mountain.x + mountain.width * 0.3, mountain.y + mountain.height * 0.4);
+        this.ctx.lineTo(mountain.x + mountain.width * 0.5, mountain.y + mountain.height * 0.8);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.restore();
+    }
+    
+    drawHill(hill) {
+        this.ctx.save();
+        this.ctx.globalAlpha = hill.opacity;
+        
+        // Rounded hill shape
+        const gradient = this.ctx.createLinearGradient(hill.x, hill.y, hill.x, hill.y + hill.height);
+        gradient.addColorStop(0, this.lightenColor(hill.color, 0.3));
+        gradient.addColorStop(1, hill.color);
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.moveTo(hill.x, hill.y + hill.height);
+        this.ctx.quadraticCurveTo(hill.x + hill.width/2, hill.y, hill.x + hill.width, hill.y + hill.height);
+        this.ctx.closePath();
+        this.ctx.fill();
+        
+        this.ctx.restore();
+    }
+    
+    drawFlyingObject(obj) {
+        this.ctx.save();
+        
+        if (obj.type === 'bird') {
+            // Simple bird silhouette
+            this.ctx.fillStyle = '#333333';
+            this.ctx.globalAlpha = 0.7;
+            
+            // Bird body
+            this.ctx.beginPath();
+            this.ctx.ellipse(obj.x, obj.y, obj.size * 0.6, obj.size * 0.3, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Wing animation
+            const wingFlap = Math.sin(obj.animFrame * 0.5) * 0.3;
+            
+            // Wings
+            this.ctx.beginPath();
+            this.ctx.ellipse(obj.x - obj.size * 0.4, obj.y - obj.size * 0.2 + wingFlap, obj.size * 0.4, obj.size * 0.2, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.beginPath();
+            this.ctx.ellipse(obj.x + obj.size * 0.4, obj.y - obj.size * 0.2 - wingFlap, obj.size * 0.4, obj.size * 0.2, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+        } else if (obj.type === 'plane') {
+            // Simple airplane silhouette
+            this.ctx.fillStyle = '#666666';
+            this.ctx.globalAlpha = 0.8;
+            
+            // Plane body
+            this.ctx.fillRect(obj.x - obj.size, obj.y - obj.size * 0.2, obj.size * 2, obj.size * 0.4);
+            
+            // Wings
+            this.ctx.fillRect(obj.x - obj.size * 0.6, obj.y - obj.size * 0.5, obj.size * 1.2, obj.size * 0.3);
+            
+            // Tail
+            this.ctx.fillRect(obj.x + obj.size * 0.8, obj.y - obj.size * 0.4, obj.size * 0.4, obj.size * 0.3);
+        }
+        
+        this.ctx.restore();
+    }
+    
     drawArcadeUI() {
         if (this.gameState !== 'playing') return;
         
@@ -1152,6 +1843,48 @@ class Game {
             this.ctx.fillText(this.characters[this.selectedCharacter].name.toUpperCase(), this.canvas.width - 30, 65);
         }
         
+        // City Lighting Level indicator (mid-top)
+        this.ctx.fillStyle = '#ffd700';
+        this.ctx.font = 'bold 32px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('CITY POWER', 720, 35);
+        
+        // Draw power bar
+        const barWidth = 150;
+        const barHeight = 20;
+        const barX = 720;
+        const barY = 45;
+        
+        // Bar background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillRect(barX, barY, barWidth, barHeight);
+        
+        // Bar border
+        this.ctx.strokeStyle = '#ffd700';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(barX, barY, barWidth, barHeight);
+        
+        // Bar fill - shows current lighting level
+        const fillWidth = (this.cityLightLevel / this.maxLightLevel) * barWidth;
+        const gradient = this.ctx.createLinearGradient(barX, barY, barX + fillWidth, barY);
+        gradient.addColorStop(0, '#ff4444');
+        gradient.addColorStop(0.5, '#ffff00');
+        gradient.addColorStop(1, '#00ff00');
+        
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(barX, barY, fillWidth, barHeight);
+        
+        // Percentage text and debug info
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(Math.round((this.cityLightLevel / this.maxLightLevel) * 100) + '%', barX + barWidth/2, barY + 35);
+        
+        // Debug: Show energy collected
+        this.ctx.fillStyle = '#cccccc';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.fillText(`Energy: ${this.energyCollected}`, barX + barWidth/2, barY + 50);
+        
         // Controls reminder (bottom)
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         this.ctx.fillRect(0, this.canvas.height - 60, this.canvas.width, 60);
@@ -1163,7 +1896,7 @@ class Game {
         
         this.ctx.fillStyle = '#00ff80';
         this.ctx.font = 'bold 18px Arial';
-        this.ctx.fillText('AVOID BOXES • COLLECT ENERGY ⚡', this.canvas.width / 2, this.canvas.height - 10);
+        this.ctx.fillText('AVOID BOXES • COLLECT ENERGY ⚡ TO POWER UP THE CITY!', this.canvas.width / 2, this.canvas.height - 10);
     }
     
     // Helper function to draw rounded rectangles
@@ -1195,6 +1928,98 @@ class Game {
         const g = Math.max(0, parseInt(hex.substr(2, 2), 16) * (1 - factor));
         const b = Math.max(0, parseInt(hex.substr(4, 2), 16) * (1 - factor));
         return `rgb(${Math.floor(r)}, ${Math.floor(g)}, ${Math.floor(b)})`;
+    }
+    
+    drawPerformanceOverlay() {
+        const ctx = this.ctx;
+        const metrics = this.performanceMetrics;
+        const breakdown = metrics.renderBreakdown;
+        
+        // Semi-transparent background
+        ctx.save();
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        ctx.fillRect(10, 10, 320, 280);
+        
+        // Title
+        ctx.fillStyle = '#00ff00';
+        ctx.font = 'bold 16px monospace';
+        ctx.fillText('Performance Monitor (Ctrl+P to toggle)', 20, 30);
+        
+        // Basic metrics
+        ctx.font = '12px monospace';
+        ctx.fillStyle = '#ffffff';
+        let y = 50;
+        
+        ctx.fillText(`FPS: ${metrics.fps}`, 20, y);
+        y += 15;
+        ctx.fillText(`Frame Time: ${metrics.renderTime.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Update Time: ${metrics.updateTime.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Max Render: ${metrics.maxRenderTime.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Max Update: ${metrics.maxUpdateTime.toFixed(2)}ms`, 20, y);
+        y += 20;
+        
+        // Object counts
+        if (metrics.objectCounts) {
+            ctx.fillStyle = '#00ffff';
+            ctx.fillText('Object Counts:', 20, y);
+            y += 15;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(`Obstacles: ${metrics.objectCounts.obstacles}`, 20, y);
+            y += 15;
+            ctx.fillText(`Collectibles: ${metrics.objectCounts.collectibles}`, 20, y);
+            y += 15;
+            ctx.fillText(`Particles: ${metrics.objectCounts.particles}`, 20, y);
+            y += 15;
+            ctx.fillText(`Grass Tufts: ${metrics.objectCounts.grassTufts}`, 20, y);
+            y += 15;
+            ctx.fillText(`Pebbles: ${metrics.objectCounts.pebbles}`, 20, y);
+            y += 15;
+            ctx.fillText(`Clouds: ${metrics.objectCounts.clouds}`, 20, y);
+            y += 15;
+            ctx.fillText(`Buildings: ${metrics.objectCounts.buildings}`, 20, y);
+            y += 15;
+            ctx.fillText(`Stars: ${metrics.objectCounts.stars}`, 20, y);
+            y += 20;
+        }
+        
+        // Render breakdown
+        ctx.fillStyle = '#ffff00';
+        ctx.fillText('Render Breakdown:', 20, y);
+        y += 15;
+        
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`Sky Gradient: ${breakdown.skyGradient.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Clouds: ${breakdown.clouds.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Buildings: ${breakdown.buildings.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Stars: ${breakdown.stars.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Ground: ${breakdown.ground.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`Game Objects: ${breakdown.gameObjects.toFixed(2)}ms`, 20, y);
+        y += 15;
+        ctx.fillText(`UI: ${breakdown.ui.toFixed(2)}ms`, 20, y);
+        
+        // Performance warnings
+        y += 20;
+        if (metrics.fps < 30) {
+            ctx.fillStyle = '#ff0000';
+            ctx.fillText('WARNING: Low FPS!', 20, y);
+            y += 15;
+        }
+        if (metrics.renderTime > 16.67) {
+            ctx.fillStyle = '#ff0000';
+            ctx.fillText('WARNING: Frame time > 16.67ms!', 20, y);
+            y += 15;
+        }
+        
+        ctx.restore();
     }
     
     updateUI() {
@@ -1279,8 +2104,86 @@ class Game {
     }
     
     gameLoop() {
+        const loopStartTime = performance.now();
+        
+        // Update game logic with timing
+        const updateStartTime = performance.now();
         this.updateGame();
+        const updateEndTime = performance.now();
+        this.performanceMetrics.updateTime = updateEndTime - updateStartTime;
+        this.performanceMetrics.maxUpdateTime = Math.max(this.performanceMetrics.maxUpdateTime, this.performanceMetrics.updateTime);
+        
+        // Render with timing
+        const renderStartTime = performance.now();
         this.render();
+        const renderEndTime = performance.now();
+        this.performanceMetrics.renderTime = renderEndTime - renderStartTime;
+        this.performanceMetrics.maxRenderTime = Math.max(this.performanceMetrics.maxRenderTime, this.performanceMetrics.renderTime);
+        
+        // Calculate FPS and frame timing
+        const currentTime = performance.now();
+        const frameTime = currentTime - this.performanceMetrics.lastTime;
+        this.performanceMetrics.lastTime = currentTime;
+        this.performanceMetrics.frameCount++;
+        
+        // Maintain rolling average of frame times
+        this.performanceMetrics.frameTimes.push(frameTime);
+        if (this.performanceMetrics.frameTimes.length > 60) {
+            this.performanceMetrics.frameTimes.shift();
+        }
+        
+        // Calculate FPS every 60 frames
+        if (this.performanceMetrics.frameCount % 60 === 0) {
+            const averageFrameTime = this.performanceMetrics.frameTimes.reduce((a, b) => a + b, 0) / this.performanceMetrics.frameTimes.length;
+            this.performanceMetrics.fps = Math.round(1000 / averageFrameTime);
+            
+            // Log performance warnings to console
+            if (this.performanceMetrics.fps < 30) {
+                console.warn(`Low FPS detected: ${this.performanceMetrics.fps}fps`);
+            }
+            if (this.performanceMetrics.renderTime > 16.67) {
+                console.warn(`High render time: ${this.performanceMetrics.renderTime.toFixed(2)}ms`);
+            }
+            if (this.performanceMetrics.updateTime > 8) {
+                console.warn(`High update time: ${this.performanceMetrics.updateTime.toFixed(2)}ms`);
+            }
+            
+            // Log breakdown of expensive render phases
+            const breakdown = this.performanceMetrics.renderBreakdown;
+            if (breakdown.clouds > 5) {
+                console.warn(`Cloud rendering is expensive: ${breakdown.clouds.toFixed(2)}ms`);
+            }
+            if (breakdown.buildings > 5) {
+                console.warn(`Building rendering is expensive: ${breakdown.buildings.toFixed(2)}ms`);
+            }
+            if (breakdown.gameObjects > 3) {
+                console.warn(`Game object rendering is expensive: ${breakdown.gameObjects.toFixed(2)}ms`);
+            }
+            
+            // Log object count warnings
+            if (this.performanceMetrics.objectCounts) {
+                const counts = this.performanceMetrics.objectCounts;
+                if (counts.particles > 100) {
+                    console.warn(`High particle count: ${counts.particles}`);
+                }
+                if (counts.clouds > 50) {
+                    console.warn(`High cloud count: ${counts.clouds}`);
+                }
+                if (counts.obstacles > 20) {
+                    console.warn(`High obstacle count: ${counts.obstacles}`);
+                }
+                if (counts.collectibles > 15) {
+                    console.warn(`High collectible count: ${counts.collectibles}`);
+                }
+                if (counts.grassTufts > 50) {
+                    console.warn(`High grass tuft count: ${counts.grassTufts}`);
+                }
+                if (counts.pebbles > 30) {
+                    console.warn(`High pebble count: ${counts.pebbles}`);
+                }
+            }
+        }
+        
         requestAnimationFrame(() => this.gameLoop());
     }
 }
