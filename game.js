@@ -3,6 +3,11 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        
+        // Set canvas to full window size
+        this.resizeCanvas();
+        window.addEventListener('resize', () => this.resizeCanvas());
+        
         this.gameState = 'menu'; // menu, playing, gameOver, leaderboard
         this.selectedCharacter = null;
         
@@ -32,7 +37,7 @@ class Game {
         };
         
         // Ground level
-        this.groundY = 360;
+        this.groundY = this.canvas.height - 100;
         this.player.y = this.groundY - this.player.height;
         
         // Game arrays
@@ -75,7 +80,20 @@ class Game {
         this.setupUI();
         this.generateBackground();
         this.generateClouds();
+        
+        // Initialize menu visibility
+        this.showMenu();
+        
         this.gameLoop();
+    }
+    
+    resizeCanvas() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+        this.groundY = this.canvas.height - 100;
+        if (this.player) {
+            this.player.y = this.groundY - this.player.height;
+        }
     }
     
     setupEventListeners() {
@@ -499,6 +517,9 @@ class Game {
             // Draw player with animation
             this.drawPlayer();
         }
+        
+        // Draw arcade-style UI overlay
+        this.drawArcadeUI();
     }
     
     drawCloud(x, y, size, opacity) {
@@ -1082,6 +1103,69 @@ class Game {
         }
     }
     
+    drawArcadeUI() {
+        if (this.gameState !== 'playing') return;
+        
+        // Semi-transparent overlay for UI background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, this.canvas.width, 80);
+        
+        // Score display (top left)
+        this.ctx.fillStyle = '#00ff80';
+        this.ctx.font = 'bold 32px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('SCORE', 30, 35);
+        
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 28px Arial';
+        this.ctx.fillText(this.score.toString(), 30, 65);
+        
+        // Distance display (top center-left)
+        this.ctx.fillStyle = '#00aaff';
+        this.ctx.font = 'bold 32px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('DISTANCE', 250, 35);
+        
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 28px Arial';
+        this.ctx.fillText(Math.floor(this.distance) + 'M', 250, 65);
+        
+        // Speed display (top center-right)
+        this.ctx.fillStyle = '#ffaa00';
+        this.ctx.font = 'bold 32px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('SPEED', 500, 35);
+        
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 28px Arial';
+        this.ctx.fillText((this.speed / this.baseSpeed).toFixed(1) + 'X', 500, 65);
+        
+        // Character name (top right)
+        if (this.selectedCharacter) {
+            this.ctx.fillStyle = '#ff69b4';
+            this.ctx.font = 'bold 32px Arial';
+            this.ctx.textAlign = 'right';
+            this.ctx.fillText('PLAYING AS', this.canvas.width - 30, 35);
+            
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = 'bold 28px Arial';
+            this.ctx.fillText(this.characters[this.selectedCharacter].name.toUpperCase(), this.canvas.width - 30, 65);
+        }
+        
+        // Controls reminder (bottom)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillRect(0, this.canvas.height - 60, this.canvas.width, 60);
+        
+        this.ctx.fillStyle = '#cccccc';
+        this.ctx.font = 'bold 24px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('PRESS SPACE OR TAP TO JUMP', this.canvas.width / 2, this.canvas.height - 35);
+        
+        this.ctx.fillStyle = '#00ff80';
+        this.ctx.font = 'bold 18px Arial';
+        this.ctx.fillText('AVOID BOXES • COLLECT ENERGY ⚡', this.canvas.width / 2, this.canvas.height - 10);
+    }
+    
     // Helper function to draw rounded rectangles
     roundRect(ctx, x, y, width, height, radius) {
         ctx.moveTo(x + radius, y);
@@ -1114,9 +1198,8 @@ class Game {
     }
     
     updateUI() {
-        document.getElementById('score').textContent = this.score;
-        document.getElementById('distance').textContent = Math.floor(this.distance);
-        document.getElementById('speed').textContent = (this.speed / this.baseSpeed).toFixed(1);
+        // UI is now drawn directly on canvas in drawArcadeUI()
+        // Keep this function for compatibility but it's no longer needed
     }
     
     showMenu() {

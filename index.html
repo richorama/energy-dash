@@ -8,43 +8,28 @@
         body {
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, #003d7a, #0066cc);
+            background: #000000;
             font-family: 'Arial', sans-serif;
             color: white;
+            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            overflow: hidden;
         }
 
         .game-container {
-            text-align: center;
-            max-width: 1200px;
-            width: 100%;
+            width: 100vw;
+            height: 100vh;
             position: relative;
-        }
-
-        h1 {
-            color: #ffffff;
-            font-size: 2.5em;
-            margin: 10px 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
-        }
-
-        .subtitle {
-            color: #b3d9ff;
-            font-size: 1.2em;
-            margin-bottom: 20px;
+            background: linear-gradient(135deg, #003d7a, #0066cc);
         }
 
         canvas {
-            border: 3px solid #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
-            background: #87ceeb;
             display: block;
-            margin: 0 auto;
+            width: 100%;
+            height: 100%;
+            background: #87ceeb;
         }
 
         .menu {
@@ -52,11 +37,17 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(0, 61, 122, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            border: 2px solid #ffffff;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.5);
+            border: 3px solid #00ff80;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .hidden {
+            display: none !important;
         }
 
         .character-select {
@@ -67,88 +58,105 @@
         }
 
         .character-btn {
-            background: #0066cc;
+            background: linear-gradient(45deg, #0066cc, #00aaff);
             color: white;
-            border: 2px solid #ffffff;
-            padding: 15px;
-            border-radius: 10px;
+            border: 2px solid #00ff80;
+            padding: 20px;
+            border-radius: 15px;
             cursor: pointer;
-            font-size: 1.1em;
+            font-size: 1.2em;
+            font-weight: bold;
             transition: all 0.3s ease;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
 
         .character-btn:hover {
-            background: #0080ff;
-            transform: scale(1.05);
+            background: linear-gradient(45deg, #00aaff, #00ddff);
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,255,255,0.4);
         }
 
         .character-btn.selected {
-            background: #00ff80;
+            background: linear-gradient(45deg, #00ff80, #00cc66);
             color: #003d7a;
-            border-color: #00ff80;
+            border-color: #ffffff;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(0,255,128,0.5); }
+            50% { box-shadow: 0 0 25px rgba(0,255,128,1); }
+            100% { box-shadow: 0 0 10px rgba(0,255,128,0.5); }
         }
 
         .btn {
-            background: #00ff80;
+            background: linear-gradient(45deg, #00ff80, #00cc66);
             color: #003d7a;
             border: none;
-            padding: 15px 30px;
-            border-radius: 25px;
-            font-size: 1.2em;
+            padding: 20px 40px;
+            border-radius: 30px;
+            font-size: 1.4em;
             font-weight: bold;
             cursor: pointer;
-            margin: 10px;
+            margin: 15px;
             transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
 
         .btn:hover {
-            background: #00cc66;
-            transform: scale(1.05);
+            background: linear-gradient(45deg, #00cc66, #00aa55);
+            transform: scale(1.05) translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,255,128,0.4);
+        }
+
+        .btn:disabled {
+            background: #666666;
+            color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .game-info {
-            display: flex;
-            justify-content: space-between;
-            margin: 10px 0;
-            font-size: 1.1em;
-            font-weight: bold;
+            display: none; /* Hide the external UI */
         }
 
         .leaderboard {
-            background: rgba(0, 61, 122, 0.9);
+            background: rgba(0, 0, 0, 0.8);
             padding: 20px;
-            border-radius: 10px;
+            border-radius: 15px;
             margin-top: 20px;
-            border: 2px solid #ffffff;
-        }
-
-        .leaderboard h3 {
-            color: #00ff80;
-            margin-top: 0;
-        }
-
-        .leaderboard-entry {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.3);
-        }
-
-        .hidden {
-            display: none;
+            border: 2px solid #00ff80;
+            backdrop-filter: blur(5px);
         }
 
         .instructions {
-            background: rgba(0, 61, 122, 0.9);
-            padding: 20px;
-            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 25px;
+            border-radius: 15px;
             margin: 20px 0;
-            border: 2px solid #ffffff;
+            border: 2px solid #00aaff;
+            backdrop-filter: blur(5px);
         }
 
-        .instructions h3 {
+        .arcade-title {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 3em;
+            font-weight: bold;
             color: #00ff80;
-            margin-top: 0;
+            text-shadow: 0 0 20px #00ff80, 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 10;
+            animation: neonGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes neonGlow {
+            from { text-shadow: 0 0 10px #00ff80, 0 0 20px #00ff80, 2px 2px 4px rgba(0,0,0,0.8); }
+            to { text-shadow: 0 0 20px #00ff80, 0 0 30px #00ff80, 0 0 40px #00ff80, 2px 2px 4px rgba(0,0,0,0.8); }
         }
 
         .input-container {
@@ -166,19 +174,12 @@
 </head>
 <body>
     <div class="game-container">
-        <h1>The Things Energy Dash</h1>
-        <p class="subtitle">Centrica Conference Game</p>
+        <div class="arcade-title">THE THINGS ENERGY DASH</div>
         
-        <div class="game-info">
-            <div>Score: <span id="score">0</span></div>
-            <div>Distance: <span id="distance">0</span>m</div>
-            <div>Speed: <span id="speed">1.0</span>x</div>
-        </div>
-
-        <canvas id="gameCanvas" width="1000" height="400"></canvas>
+        <canvas id="gameCanvas" width="1400" height="800"></canvas>
 
         <div id="startMenu" class="menu">
-            <h2>Choose Your Character</h2>
+            <h2 style="color: #00ff80; font-size: 2.5em; margin-bottom: 30px;">SELECT YOUR CHARACTER</h2>
             <div class="character-select">
                 <button class="character-btn" data-character="dave">
                     Dave<br><small>(Big Softie)</small>
@@ -193,35 +194,35 @@
                     Charlie & Riley<br><small>(Double Trouble)</small>
                 </button>
             </div>
-            <button id="startBtn" class="btn" disabled>Start Game</button>
+            <button id="startBtn" class="btn" disabled>START GAME</button>
+            
+            <div class="instructions">
+                <h3 style="color: #00aaff;">HOW TO PLAY</h3>
+                <p><strong>Desktop:</strong> Press SPACE or UP ARROW to jump</p>
+                <p><strong>Mobile:</strong> Tap anywhere on the screen to jump</p>
+                <p><strong>Avoid:</strong> All cardboard boxes</p>
+                <p><strong>Collect:</strong> ⚡ White Energy (+10), ⚡ Yellow Energy (+25), ⚡ Blue Energy (+50), ⚡ Gold Energy (+100)</p>
+            </div>
         </div>
 
         <div id="gameOverMenu" class="menu hidden">
-            <h2>Game Over!</h2>
-            <p>Final Score: <span id="finalScore">0</span></p>
-            <p>Distance Travelled: <span id="finalDistance">0</span>m</p>
+            <h2 style="color: #ff6666; font-size: 2.5em; margin-bottom: 20px;">GAME OVER!</h2>
+            <p style="font-size: 1.8em; color: #00ff80;">Final Score: <span id="finalScore">0</span></p>
+            <p style="font-size: 1.5em; color: #00aaff;">Distance Travelled: <span id="finalDistance">0</span>m</p>
             <div class="input-container">
-                <label>Enter your name (optional):</label><br>
-                <input type="text" id="playerName" placeholder="Your name" maxlength="20">
+                <label style="font-size: 1.2em; color: #ffffff;">Enter your name (optional):</label><br>
+                <input type="text" id="playerName" placeholder="Your name" maxlength="20" style="font-size: 1.1em; padding: 15px; margin: 10px;">
             </div>
-            <button id="restartBtn" class="btn">Play Again</button>
-            <button id="showLeaderboardBtn" class="btn">View Leaderboard</button>
+            <button id="restartBtn" class="btn">PLAY AGAIN</button>
+            <button id="showLeaderboardBtn" class="btn">VIEW LEADERBOARD</button>
         </div>
 
         <div id="leaderboardMenu" class="menu hidden">
-            <h2>Leaderboard</h2>
+            <h2 style="color: #00ff80; font-size: 2.5em; margin-bottom: 20px;">LEADERBOARD</h2>
             <div id="leaderboardList" class="leaderboard">
                 <!-- Leaderboard entries will be populated here -->
             </div>
-            <button id="backToMenuBtn" class="btn">Back to Menu</button>
-        </div>
-
-        <div class="instructions">
-            <h3>How to Play</h3>
-            <p><strong>Desktop:</strong> Press SPACE or UP ARROW to jump</p>
-            <p><strong>Mobile:</strong> Tap anywhere on the screen to jump</p>
-            <p><strong>Obstacles:</strong> Radiators, Toolboxes, Boilers, Dripping Taps</p>
-            <p><strong>Collectibles:</strong> ⚡ White Energy (+10), ⚡ Yellow Energy (+25), ⚡ Blue Energy (+50), ⚡ Gold Energy (+100)</p>
+            <button id="backToMenuBtn" class="btn">BACK TO MENU</button>
         </div>
     </div>
 
