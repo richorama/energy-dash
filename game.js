@@ -8,7 +8,7 @@ class Game {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        this.gameState = 'menu'; // menu, playing, gameOver, leaderboard
+        this.gameState = 'leaderboard'; // Start with leaderboard instead of menu
         this.selectedCharacter = 'dave'; // Default character
         
         // Performance monitoring
@@ -113,8 +113,8 @@ class Game {
         this.generateClouds();
         this.generateStars();
         
-        // Initialize menu visibility
-        this.showMenu();
+        // Initialize leaderboard as main screen
+        this.showLeaderboard();
         
         this.gameLoop();
     }
@@ -133,7 +133,13 @@ class Game {
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' || e.code === 'ArrowUp') {
                 e.preventDefault();
-                this.jump();
+                
+                // If we're on the leaderboard, start the game
+                if (this.gameState === 'leaderboard') {
+                    this.startGame();
+                } else {
+                    this.jump();
+                }
             }
             // Performance overlay toggle
             if (e.code === 'KeyP' && e.ctrlKey) {
@@ -145,12 +151,23 @@ class Game {
         // Touch controls
         this.canvas.addEventListener('touchstart', (e) => {
             e.preventDefault();
-            this.jump();
+            
+            // If we're on the leaderboard, start the game
+            if (this.gameState === 'leaderboard') {
+                this.startGame();
+            } else {
+                this.jump();
+            }
         });
         
         // Mouse controls (for testing)
         this.canvas.addEventListener('click', () => {
-            this.jump();
+            // If we're on the leaderboard, start the game
+            if (this.gameState === 'leaderboard') {
+                this.startGame();
+            } else {
+                this.jump();
+            }
         });
     }
     
@@ -164,17 +181,12 @@ class Game {
         document.getElementById('restartBtn').addEventListener('click', () => {
             this.saveScore();
             this.resetGame();
-            this.showMenu();
+            this.showLeaderboard();
         });
         
         // Leaderboard buttons
         document.getElementById('showLeaderboardBtn').addEventListener('click', () => {
-            this.saveScore();
             this.showLeaderboard();
-        });
-        
-        document.getElementById('backToMenuBtn').addEventListener('click', () => {
-            this.showMenu();
         });
     }
     
@@ -184,6 +196,12 @@ class Game {
         // Set default character color
         this.player.color = this.characters[this.selectedCharacter].color;
         this.hideAllMenus();
+        
+        // Show the game title again
+        const gameTitle = document.querySelector('.arcade-title');
+        if (gameTitle) {
+            gameTitle.style.display = 'block';
+        }
     }
     
     resetGame() {
@@ -843,7 +861,33 @@ class Game {
         this.gameState = 'gameOver';
         document.getElementById('finalScore').textContent = this.score;
         document.getElementById('finalDistance').textContent = Math.floor(this.distance);
-        this.showGameOverMenu();
+        
+        // Always reset the UI elements first
+        const nameInput = document.querySelector('.input-container');
+        const buttons = document.querySelectorAll('#gameOverMenu .btn');
+        if (nameInput) nameInput.style.display = 'block';
+        buttons.forEach(btn => btn.style.display = 'inline-block');
+        
+        // Check if it's a high score
+        if (this.isHighScore()) {
+            // Show game over menu for high score entry
+            console.log('High score detected, showing full game over menu');
+            this.showGameOverMenu();
+        } else {
+            // Show game over screen briefly, then auto-save and go to leaderboard
+            console.log('Regular score, showing brief game over then leaderboard');
+            this.showGameOverMenu();
+            
+            // Hide the input and buttons for non-high scores
+            if (nameInput) nameInput.style.display = 'none';
+            buttons.forEach(btn => btn.style.display = 'none');
+            
+            // Auto-save and transition to leaderboard after 2 seconds
+            setTimeout(() => {
+                this.saveScoreAnonymous();
+                this.showLeaderboard();
+            }, 2000);
+        }
     }
     
     render() {
@@ -1070,6 +1114,8 @@ class Game {
         // Rooftop
         this.ctx.fillStyle = this.darkenColor(building.color, 0.3);
         this.ctx.fillRect(building.x - 5, building.y - 10, building.width + 10, 10);
+        
+        this.ctx.restore();
     }
     
     drawWindows(building) {
@@ -1095,8 +1141,6 @@ class Game {
                 this.ctx.strokeRect(building.x + window.x, building.y + window.y, 8, 8);
             }
         }
-        
-        this.ctx.restore();
     }
     
     drawGround() {
@@ -2103,7 +2147,27 @@ class Game {
     }
     
     showGameOverMenu() {
+        this.hideAllMenus();
         document.getElementById('gameOverMenu').classList.remove('hidden');
+        
+        // Show the game title
+        const gameTitle = document.querySelector('.arcade-title');
+        if (gameTitle) {
+            gameTitle.style.display = 'block';
+        }
+    }
+    
+    isHighScore() {
+        const scores = JSON.parse(localStorage.getItem('energyDashScores') || '[]');
+        
+        // If less than 10 scores, it's always a high score
+        if (scores.length < 10) {
+            return true;
+        }
+        
+        // Check if current score beats the lowest high score
+        const lowestHighScore = scores[scores.length - 1].score;
+        return this.score > lowestHighScore;
     }
     
     showLeaderboard() {
@@ -2111,6 +2175,12 @@ class Game {
         this.hideAllMenus();
         this.updateLeaderboardDisplay();
         document.getElementById('leaderboardMenu').classList.remove('hidden');
+        
+        // Hide the game title
+        const gameTitle = document.querySelector('.arcade-title');
+        if (gameTitle) {
+            gameTitle.style.display = 'none';
+        }
     }
     
     hideAllMenus() {
@@ -2150,24 +2220,79 @@ class Game {
         document.getElementById('playerName').value = '';
     }
     
+    saveScoreAnonymous() {
+        const scoreEntry = {
+            name: 'Anonymous',
+            character: 'Player',
+            score: this.score,
+            distance: Math.floor(this.distance),
+            date: new Date().toLocaleDateString()
+        };
+        
+        // Get existing scores
+        let scores = JSON.parse(localStorage.getItem('energyDashScores') || '[]');
+        
+        // Add new score
+        scores.push(scoreEntry);
+        
+        // Sort by score (descending)
+        scores.sort((a, b) => b.score - a.score);
+        
+        // Keep only top 10
+        scores = scores.slice(0, 10);
+        
+        // Save back to localStorage
+        localStorage.setItem('energyDashScores', JSON.stringify(scores));
+    }
+    
     updateLeaderboardDisplay() {
         const scores = JSON.parse(localStorage.getItem('energyDashScores') || '[]');
         const container = document.getElementById('leaderboardList');
         
         if (scores.length === 0) {
-            container.innerHTML = '<p style="text-align: center; color: #b3d9ff;">No scores yet!</p>';
+            container.innerHTML = `
+                <div class="score-entry">
+                    <span class="score-rank">1.</span>
+                    <span style="color: #888;">NO SCORES YET</span>
+                    <span class="score-value">0</span>
+                </div>
+                <div class="score-entry">
+                    <span class="score-rank">2.</span>
+                    <span style="color: #888;">BE THE FIRST</span>
+                    <span class="score-value">0</span>
+                </div>
+                <div class="score-entry">
+                    <span class="score-rank">3.</span>
+                    <span style="color: #888;">TO PLAY!</span>
+                    <span class="score-value">0</span>
+                </div>
+            `;
             return;
         }
         
-        let html = '<h3>Top 10 Scores</h3>';
-        scores.forEach((score, index) => {
-            html += `
-                <div class="leaderboard-entry">
-                    <span>${index + 1}. ${score.name} (${score.character})</span>
-                    <span>${score.score} pts (${score.distance}m)</span>
-                </div>
-            `;
-        });
+        let html = '';
+        // Show top 10 scores with arcade styling
+        for (let i = 0; i < 10; i++) {
+            if (i < scores.length) {
+                const score = scores[i];
+                html += `
+                    <div class="score-entry">
+                        <span class="score-rank">${i + 1}.</span>
+                        <span>${score.name}</span>
+                        <span class="score-value">${score.score.toLocaleString()}</span>
+                    </div>
+                `;
+            } else {
+                // Fill empty slots
+                html += `
+                    <div class="score-entry">
+                        <span class="score-rank">${i + 1}.</span>
+                        <span style="color: #444;">---</span>
+                        <span class="score-value" style="color: #444;">0</span>
+                    </div>
+                `;
+            }
+        }
         
         container.innerHTML = html;
     }
