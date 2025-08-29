@@ -2320,17 +2320,6 @@ class Game {
             this.ctx.restore();
         }
         
-        // Power-up timer display
-        if (this.powerUpActive) {
-            const remaining = Math.max(0, this.powerUpDuration - (Date.now() - this.powerUpStartTime));
-            const seconds = Math.ceil(remaining / 1000);
-            
-            this.ctx.fillStyle = '#ff0080';
-            this.ctx.font = 'bold 24px Arial';
-            this.ctx.textAlign = 'right';
-            this.ctx.fillText(`POWER-UP: ${seconds}s`, this.canvas.width - 30, 40);
-        }
-        
         // Controls reminder (bottom)
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
         this.ctx.fillRect(0, this.canvas.height - 60, this.canvas.width, 60);
