@@ -1,13 +1,16 @@
-# The Things Energy Dash
+# Energy Dash
 
-A browser-based endless runner game created for Centrica (British Gas) staff conference. Players control one of four "Things" characters as they run through obstacles and collect energy-themed items.
+Energy Dash is a lightweight browser game where you guide a runner through stylized city streets, timing jumps to clear obstacles and gather glowing power cells.
+
+Gameplay ramps up as pacing quickens; score comes from how long you survive and the number of power cells collected. High scores are kept locally so players can compete against their own best runs.
+
+Built for portability and smooth play on modern browsers, the game supports both keyboard and touch input and can be deployed as a single static page.
 
 ## Features
 
-- **Four Characters**: Dave (Big Softie), Mel (Coffee Lover), Ash (Tech Support), Charlie & Riley (Double Trouble)
 - **Endless Runner Gameplay**: Jump over obstacles while the speed increases
-- **Obstacles**: Radiators, Toolboxes, Boilers/Pipes, Dripping Taps
-- **Collectibles**: Blue Flames (+10), Lightning Bolts (+25), Smart Meters (+50), British Gas Stars (+100)
+- **Obstacles**: Cardboard boxes left out on the street
+- **Collectibles**: Energy bolts to power up the city
 - **Leaderboard**: Top 10 scores stored locally in browser
 - **Responsive Design**: Works on desktop and mobile devices
 
@@ -33,7 +36,6 @@ A browser-based endless runner game created for Centrica (British Gas) staff con
 bggame/
 ├── index.html      # Main HTML file with game interface
 ├── game.js         # Game logic and mechanics
-├── spec.md         # Original game specification
 └── README.md       # This file
 ```
 
@@ -44,13 +46,6 @@ bggame/
 - **Speed Increase**: Game gradually gets faster and more challenging
 - **Collision Detection**: Game ends when hitting any obstacle
 - **Local Storage**: Leaderboard persists between browser sessions
-
-## Customization
-
-The game uses Centrica/British Gas branding colors:
-- Primary: Blues (#003d7a, #0066cc)
-- Accent: Bright green (#00ff80)
-- Background: Sky blue gradient
 
 ## Browser Compatibility
 

@@ -1,4 +1,4 @@
-// The Things Energy Dash - Game Logic
+// Energy Dash - Game Logic
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -106,12 +106,30 @@ class Game {
         this.cityLightLevel = 0.0; // Start with all lights off
         this.energyCollected = 0;
         this.maxLightLevel = 0.95; // Maximum 95% of lights can be on
+        this.maxEnergy = 250; // 100% energy at 250 points
+        
+        // Power-up system
+        this.powerUpActive = false;
+        this.powerUpDuration = 10000; // 10 seconds
+        this.powerUpStartTime = 0;
+        this.powerUpMessage = '';
+        this.powerUpMessageTime = 0;
+        
+        // Billboard system
+        this.billboards = [];
+        this.billboardTypes = [
+            { name: 'Microsoft', color: '#00BCF2', textColor: '#FFFFFF', text: 'Microsoft' },
+            { name: 'Centrica', color: '#E60028', textColor: '#FFFFFF', text: 'Centrica' },
+            { name: 'GitHub', color: '#24292e', textColor: '#FFFFFF', text: 'GitHub' },
+            { name: 'Copilot', color: '#6f42c1', textColor: '#FFFFFF', text: 'Copilot' }
+        ];
         
         this.setupEventListeners();
         this.setupUI();
         this.generateBackground();
         this.generateClouds();
         this.generateStars();
+        this.generateBillboards();
         
         // Initialize leaderboard as main screen
         this.showLeaderboard();
@@ -244,6 +262,18 @@ class Game {
         this.cityLightLevel = 0.0; // Start with all lights off
         this.energyCollected = 0;
         this.resetBuildingLights();
+        
+        // Reset power-up system
+        this.powerUpActive = false;
+        this.powerUpStartTime = 0;
+        this.powerUpMessage = '';
+        this.powerUpMessageTime = 0;
+        this.player.powerUp = false;
+        this.player.invincible = false;
+        this.player.speedBoost = false;
+        
+        // Regenerate billboards
+        this.generateBillboards();
         
         this.updateUI();
     }
@@ -498,6 +528,29 @@ class Game {
         }
     }
     
+    generateBillboards() {
+        // Generate billboards on buildings
+        this.billboards = [];
+        
+        // Add billboards to some buildings
+        for (let building of this.buildings) {
+            // Only add billboards to taller buildings (middle and foreground)
+            if (building.depth !== 'background' && building.height > 150 && Math.random() < 0.3) {
+                const billboardType = this.billboardTypes[Math.floor(Math.random() * this.billboardTypes.length)];
+                
+                this.billboards.push({
+                    x: building.x + 10,
+                    y: building.y + 20,
+                    width: building.width - 20,
+                    height: 40,
+                    buildingRef: building,
+                    type: billboardType,
+                    speed: building.speed
+                });
+            }
+        }
+    }
+    
     getRandomBuildingColor() {
         const colors = [
             '#2c3e50', '#34495e', '#5d4e75', '#4a6741', 
@@ -560,6 +613,21 @@ class Game {
                     });
                 }
             }
+        } else if (type === 'powerup') {
+            // Power-up particles - spectacular, large, glowing
+            this.particles.push({
+                x: x + (Math.random() - 0.5) * 30,
+                y: y + (Math.random() - 0.5) * 30,
+                velocityX: (Math.random() - 0.5) * 6,
+                velocityY: -Math.random() * 8 - 2,
+                life: 80 + Math.random() * 40,
+                maxLife: 80 + Math.random() * 40,
+                color: ['#ff0080', '#ffff00', '#00ffff', '#ff4444', '#ffffff'][Math.floor(Math.random() * 5)],
+                size: 6 + Math.random() * 8,
+                type: 'powerup',
+                glow: Math.random() * Math.PI * 2,
+                sparkleIntensity: 1.5
+            });
         } else {
             // Simple collision particles
             const colors = ['#ff6b6b', '#ff4444'];
@@ -623,6 +691,9 @@ class Game {
                         }
                     }
                 }
+                
+                // Regenerate billboard for this building if needed
+                this.regenerateBillboardForBuilding(building);
             }
         }
         
@@ -654,7 +725,7 @@ class Game {
         if (this.gameState !== 'playing') return;
         
         this.distance += this.speed * 0.1;
-        this.score += 1; // Base score for survival
+        this.score += this.powerUpActive ? 2 : 1; // Double score during power-up
         
         // Increase speed over time (more gradual)
         this.speed = this.baseSpeed + (this.gameTime * 0.001);
@@ -671,6 +742,9 @@ class Game {
         
         // Update player animation
         this.player.runCycle += this.speed * 0.2;
+        
+        // Update power-up system
+        this.updatePowerUp();
         
         // Update player
         this.updatePlayer();
@@ -720,10 +794,15 @@ class Game {
                 this.obstacles.splice(i, 1);
             }
             
-            // Check collision with player
-            else if (this.checkCollision(this.player, obstacle)) {
+            // Check collision with player (unless invincible during power-up)
+            else if (this.checkCollision(this.player, obstacle) && !this.player.invincible) {
                 this.gameOver();
                 return;
+            } else if (this.checkCollision(this.player, obstacle) && this.player.invincible) {
+                // Destroy obstacle with spectacular effect during power-up
+                this.createParticle(obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2, 'powerup');
+                this.obstacles.splice(i, 1);
+                this.score += this.powerUpActive ? 100 : 50; // Double bonus points during power-up
             }
         }
         
@@ -742,8 +821,13 @@ class Game {
             
             // Check collection
             else if (this.checkCollision(this.player, collectible)) {
-                this.score += collectible.points;
-                this.energyCollected += collectible.points;
+                this.score += this.powerUpActive ? collectible.points * 2 : collectible.points;
+                this.energyCollected = Math.min(this.energyCollected + collectible.points, this.maxEnergy);
+                
+                // Check for 100% energy power-up
+                if (this.energyCollected >= this.maxEnergy && !this.powerUpActive) {
+                    this.activatePowerUp();
+                }
                 
                 // Update city lighting based on energy collected
                 this.updateCityLighting();
@@ -820,21 +904,115 @@ class Game {
     }
     
     updateCityLighting() {
+        // If power-up is active, lights are already at 100%
+        if (this.powerUpActive) {
+            return;
+        }
+        
         // Calculate new light level based on energy collected
         // Every 25 energy points increases lighting by 10% (much faster progression)
         const lightIncrease = Math.floor(this.energyCollected / 25) * 0.1;
-        this.cityLightLevel = Math.min(this.maxLightLevel, lightIncrease);
+        const newLightLevel = Math.min(this.maxLightLevel, lightIncrease);
         
-        // Update lights immediately when energy is collected
-        this.updateBuildingLights();
+        // Only update if the light level has changed
+        if (newLightLevel !== this.cityLightLevel) {
+            this.cityLightLevel = newLightLevel;
+            this.updateBuildingLights();
+        }
+    }
+    
+    activatePowerUp() {
+        // Safety check to prevent multiple activations
+        if (this.powerUpActive) {
+            console.log('Power-up already active, skipping activation');
+            return;
+        }
+        
+        console.log('100% Energy Power-Up Activated!');
+        this.powerUpActive = true;
+        this.powerUpStartTime = Date.now();
+        this.powerUpMessage = '⚡ 100% ENERGY! POWER-UP ACTIVATED! ⚡';
+        this.powerUpMessageTime = Date.now();
+        
+        // Force all windows to light up immediately (simple and fast)
+        this.cityLightLevel = 1.0;
+        for (let building of this.buildings) {
+            for (let window of building.windows) {
+                window.lit = true;
+            }
+        }
+        
+        // Player power-up effects
+        this.player.powerUp = true;
+        this.player.invincible = true;
+        this.player.speedBoost = true;
+        
+        // Increase game speed temporarily
+        this.speed = this.baseSpeed * 1.5;
+        
+        // Create spectacular particle effects
+        for (let i = 0; i < 20; i++) {
+            this.createParticle(
+                this.player.x + Math.random() * 60,
+                this.player.y + Math.random() * 60,
+                'powerup'
+            );
+        }
+    }
+    
+    updatePowerUp() {
+        if (!this.powerUpActive) return;
+        
+        const elapsed = Date.now() - this.powerUpStartTime;
+        
+        // Check if power-up should end
+        if (elapsed >= this.powerUpDuration) {
+            this.deactivatePowerUp();
+        }
+        
+        // Create continuous particle effects during power-up
+        if (Math.random() < 0.3) {
+            this.createParticle(
+                this.player.x + Math.random() * 40,
+                this.player.y + Math.random() * 40,
+                'powerup'
+            );
+        }
+    }
+    
+    deactivatePowerUp() {
+        console.log('Power-Up Deactivated');
+        this.powerUpActive = false;
+        this.player.powerUp = false;
+        this.player.invincible = false;
+        this.player.speedBoost = false;
+        
+        // Reset speed to normal
+        this.speed = this.baseSpeed;
+        
+        // Reset lighting to normal level
+        this.updateCityLighting();
     }
     
     updateBuildingLights() {
+        // Performance optimization: limit how often we update lights
+        if (!this.lastLightUpdate) this.lastLightUpdate = 0;
+        const now = Date.now();
+        if (now - this.lastLightUpdate < 100) { // Only update every 100ms
+            return;
+        }
+        this.lastLightUpdate = now;
+        
         // More aggressive lighting update for immediate visual feedback
         const targetLightLevel = this.cityLightLevel;
         
         if (targetLightLevel > 0) {
+            let processedBuildings = 0;
+            const maxBuildingsPerFrame = 5; // Limit processing to avoid freeze
+            
             for (let building of this.buildings) {
+                if (processedBuildings >= maxBuildingsPerFrame) break;
+                
                 // Calculate current light percentage for this building
                 const totalWindows = building.windows.length;
                 const litWindows = building.windows.filter(w => w.lit).length;
@@ -852,6 +1030,7 @@ class Game {
                         }
                     }
                 }
+                processedBuildings++;
             }
         }
     }
@@ -973,6 +1152,13 @@ class Game {
         phaseStartTime = performance.now();
         for (let building of this.buildings) {
             this.drawBuilding(building);
+            
+            // Draw any billboards on this building immediately after the building
+            for (let billboard of this.billboards) {
+                if (billboard.buildingRef === building) {
+                    this.drawBillboard(billboard);
+                }
+            }
         }
         phaseEndTime = performance.now();
         this.performanceMetrics.renderBreakdown.buildings = phaseEndTime - phaseStartTime;
@@ -1158,6 +1344,60 @@ class Game {
                 this.ctx.lineWidth = 0.5;
                 this.ctx.strokeRect(building.x + window.x, building.y + window.y, 8, 8);
             }
+        }
+    }
+    
+    drawBillboard(billboard) {
+        // Update billboard position to match its building
+        billboard.x = billboard.buildingRef.x + 10;
+        
+        // Draw billboard background
+        this.ctx.fillStyle = billboard.type.color;
+        this.ctx.fillRect(billboard.x, billboard.y, billboard.width, billboard.height);
+        
+        // Draw billboard border
+        this.ctx.strokeStyle = '#333333';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(billboard.x, billboard.y, billboard.width, billboard.height);
+        
+        // Draw company text
+        this.ctx.fillStyle = billboard.type.textColor;
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(
+            billboard.type.text, 
+            billboard.x + billboard.width / 2, 
+            billboard.y + billboard.height / 2 + 6
+        );
+        
+        // Add subtle glow effect
+        this.ctx.shadowColor = billboard.type.color;
+        this.ctx.shadowBlur = 5;
+        this.ctx.fillText(
+            billboard.type.text, 
+            billboard.x + billboard.width / 2, 
+            billboard.y + billboard.height / 2 + 6
+        );
+        this.ctx.shadowBlur = 0;
+    }
+    
+    regenerateBillboardForBuilding(building) {
+        // Remove any existing billboard for this building
+        this.billboards = this.billboards.filter(billboard => billboard.buildingRef !== building);
+        
+        // Add new billboard if conditions are met
+        if (building.depth !== 'background' && building.height > 150 && Math.random() < 0.3) {
+            const billboardType = this.billboardTypes[Math.floor(Math.random() * this.billboardTypes.length)];
+            
+            this.billboards.push({
+                x: building.x + 10,
+                y: building.y + 20,
+                width: building.width - 20,
+                height: 40,
+                buildingRef: building,
+                type: billboardType,
+                speed: building.speed
+            });
         }
     }
     
@@ -1431,6 +1671,49 @@ class Game {
             this.ctx.shadowBlur = 8;
             this.ctx.stroke();
             
+        } else if (particle.type === 'powerup') {
+            // Spectacular power-up particle with intense glow
+            const glowSize = particle.size + Math.sin(particle.glow) * 4;
+            
+            // Multiple glow layers
+            for (let layer = 0; layer < 3; layer++) {
+                const layerSize = glowSize * (1 + layer * 0.5);
+                const layerAlpha = alpha * (0.8 - layer * 0.2);
+                
+                const glow = this.ctx.createRadialGradient(
+                    particle.x, particle.y, 0,
+                    particle.x, particle.y, layerSize
+                );
+                
+                // Use rgba() format instead of hex with alpha to avoid parsing errors
+                const baseColor = particle.color;
+                const r = parseInt(baseColor.slice(1, 3), 16);
+                const g = parseInt(baseColor.slice(3, 5), 16);
+                const b = parseInt(baseColor.slice(5, 7), 16);
+                
+                glow.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${layerAlpha})`);
+                glow.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${layerAlpha * 0.5})`);
+                glow.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                
+                this.ctx.fillStyle = glow;
+                this.ctx.beginPath();
+                this.ctx.arc(particle.x, particle.y, layerSize, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            
+            // Core particle
+            this.ctx.fillStyle = particle.color;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Bright center highlight
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.globalAlpha = alpha * 0.9;
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x - particle.size * 0.3, particle.y - particle.size * 0.3, particle.size * 0.5, 0, Math.PI * 2);
+            this.ctx.fill();
+            
         } else {
             // Simple particle (fallback)
             this.ctx.fillStyle = particle.color;
@@ -1499,6 +1782,33 @@ class Game {
     
     drawPlayer() {
         const character = this.characters[this.selectedCharacter];
+        
+        // Power-up glow effect
+        if (this.player.powerUp) {
+            this.ctx.save();
+            const glowIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.01);
+            const glowSize = this.player.width * 1.5;
+            
+            // Multi-layer glow
+            for (let i = 0; i < 3; i++) {
+                const size = glowSize * (1 + i * 0.3);
+                const alpha = glowIntensity * (0.4 - i * 0.1);
+                
+                const glow = this.ctx.createRadialGradient(
+                    this.player.x + this.player.width/2, this.player.y + this.player.height/2, 0,
+                    this.player.x + this.player.width/2, this.player.y + this.player.height/2, size
+                );
+                glow.addColorStop(0, `rgba(255, 255, 0, ${alpha})`);
+                glow.addColorStop(0.5, `rgba(255, 0, 128, ${alpha * 0.5})`);
+                glow.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                
+                this.ctx.fillStyle = glow;
+                this.ctx.beginPath();
+                this.ctx.arc(this.player.x + this.player.width/2, this.player.y + this.player.height/2, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+            this.ctx.restore();
+        }
         
         // Player shadow
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -1954,36 +2264,16 @@ class Game {
         this.ctx.font = 'bold 28px Arial';
         this.ctx.fillText(this.score.toString(), 30, 65);
         
-        // Distance display (top center-left)
-        this.ctx.fillStyle = '#00aaff';
-        this.ctx.font = 'bold 32px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('DISTANCE', 250, 35);
-        
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 28px Arial';
-        this.ctx.fillText(Math.floor(this.distance) + 'M', 250, 65);
-        
-        // Speed display (top center-right)
-        this.ctx.fillStyle = '#ffaa00';
-        this.ctx.font = 'bold 32px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('SPEED', 500, 35);
-        
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 28px Arial';
-        this.ctx.fillText((this.speed / this.baseSpeed).toFixed(1) + 'X', 500, 65);
-        
-        // City Lighting Level indicator (mid-top)
+        // City Lighting Level indicator (moved to far right)
         this.ctx.fillStyle = '#ffd700';
         this.ctx.font = 'bold 32px Arial';
-        this.ctx.textAlign = 'left';
-        this.ctx.fillText('CITY POWER', 720, 35);
+        this.ctx.textAlign = 'right';
+        this.ctx.fillText('CITY POWER', this.canvas.width - 30, 35);
         
-        // Draw power bar
+        // Draw power bar (positioned under the right-aligned title)
         const barWidth = 150;
         const barHeight = 20;
-        const barX = 720;
+        const barX = this.canvas.width - 30 - barWidth; // Position from right edge
         const barY = 45;
         
         // Bar background
@@ -2011,10 +2301,35 @@ class Game {
         this.ctx.textAlign = 'center';
         this.ctx.fillText(Math.round((this.cityLightLevel / this.maxLightLevel) * 100) + '%', barX + barWidth/2, barY + 35);
         
-        // Debug: Show energy collected
-        this.ctx.fillStyle = '#cccccc';
-        this.ctx.font = 'bold 12px Arial';
-        this.ctx.fillText(`Energy: ${this.energyCollected}`, barX + barWidth/2, barY + 50);
+        // Power-up message display (simplified for performance)
+        if (this.powerUpMessage && Date.now() - this.powerUpMessageTime < 3000) {
+            const messageAlpha = Math.max(0, 1 - (Date.now() - this.powerUpMessageTime) / 3000);
+            
+            this.ctx.save();
+            this.ctx.globalAlpha = messageAlpha;
+            this.ctx.fillStyle = '#ffff00';
+            this.ctx.font = 'bold 36px Arial';
+            this.ctx.textAlign = 'center';
+            
+            const messageX = this.canvas.width / 2;
+            const messageY = this.canvas.height / 2 - 100;
+            
+            // Simple fill text only (no stroke or shadow for performance)
+            this.ctx.fillText(this.powerUpMessage, messageX, messageY);
+            
+            this.ctx.restore();
+        }
+        
+        // Power-up timer display
+        if (this.powerUpActive) {
+            const remaining = Math.max(0, this.powerUpDuration - (Date.now() - this.powerUpStartTime));
+            const seconds = Math.ceil(remaining / 1000);
+            
+            this.ctx.fillStyle = '#ff0080';
+            this.ctx.font = 'bold 24px Arial';
+            this.ctx.textAlign = 'right';
+            this.ctx.fillText(`POWER-UP: ${seconds}s`, this.canvas.width - 30, 40);
+        }
         
         // Controls reminder (bottom)
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
