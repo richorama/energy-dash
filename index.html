@@ -59,6 +59,12 @@
             border: 3px solid #00ff80;
             text-align: center;
             backdrop-filter: blur(10px);
+            z-index: 5000;
+        }
+
+        /* Game over menu should appear above everything */
+        #gameOverMenu {
+            z-index: 15000 !important;
         }
 
         /* Override menu positioning for leaderboard */
@@ -341,12 +347,12 @@
             <h2 style="color: #ff6666; font-size: 2.5em; margin-bottom: 20px;">GAME OVER!</h2>
             <p style="font-size: 1.8em; color: #00ff80;">Final Score: <span id="finalScore">0</span></p>
             <p style="font-size: 1.5em; color: #00aaff;">Distance Travelled: <span id="finalDistance">0</span>m</p>
+            <h3 style="color: #ffff00; font-size: 1.5em; margin: 30px 0 10px 0;">🏆 HIGH SCORE! 🏆</h3>
             <div class="input-container">
-                <label style="font-size: 1.2em; color: #ffffff;">Enter your name (optional):</label><br>
-                <input type="text" id="playerName" placeholder="Your name" maxlength="20" style="font-size: 1.1em; padding: 15px; margin: 10px;">
+                <label style="font-size: 1.2em; color: #ffffff;">Enter your name:</label><br>
+                <input type="text" id="playerName" placeholder="Your name" maxlength="20" required style="font-size: 1.1em; padding: 15px; margin: 10px;">
             </div>
-            <button id="restartBtn" class="btn">PLAY AGAIN</button>
-            <button id="showLeaderboardBtn" class="btn">VIEW LEADERBOARD</button>
+            <button id="saveScoreBtn" class="btn">SAVE SCORE</button>
         </div>
     </div>
 

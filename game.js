@@ -177,16 +177,28 @@ class Game {
             this.startGame();
         });
         
-        // Restart button
-        document.getElementById('restartBtn').addEventListener('click', () => {
-            this.saveScore();
-            this.resetGame();
-            this.showLeaderboard();
+        // Save score button (for high scores only)
+        document.getElementById('saveScoreBtn').addEventListener('click', () => {
+            const playerName = document.getElementById('playerName').value.trim();
+            if (playerName) {
+                this.saveScore();
+                this.showLeaderboard();
+            } else {
+                alert('Please enter your name to save your high score!');
+            }
         });
         
-        // Leaderboard buttons
-        document.getElementById('showLeaderboardBtn').addEventListener('click', () => {
-            this.showLeaderboard();
+        // Allow Enter key to save score
+        document.getElementById('playerName').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const playerName = document.getElementById('playerName').value.trim();
+                if (playerName) {
+                    this.saveScore();
+                    this.showLeaderboard();
+                } else {
+                    alert('Please enter your name to save your high score!');
+                }
+            }
         });
     }
     
@@ -353,22 +365,19 @@ class Game {
             const height = 60 + Math.random() * 300;
             
             // Assign depth based on height - taller buildings are closer, shorter are further
-            let depth, speed, opacity;
+            let depth, speed;
             if (height < 150) {
-                // Background buildings - smaller, slower, more transparent
+                // Background buildings - smaller, slower
                 depth = 'background';
                 speed = 0.2;
-                opacity = 0.6;
             } else if (height < 250) {
                 // Middle ground buildings
                 depth = 'middle';
                 speed = 0.4;
-                opacity = 0.8;
             } else {
-                // Foreground buildings - taller, faster, fully opaque
+                // Foreground buildings - taller, faster
                 depth = 'foreground';
                 speed = 0.6;
-                opacity = 1.0;
             }
             
             const building = {
@@ -380,7 +389,6 @@ class Game {
                 windowPattern: Math.floor(Math.random() * 3),
                 speed: speed, // Fixed speed based on depth
                 depth: depth,
-                opacity: opacity,
                 windows: [] // Pre-generate window pattern
             };
             
@@ -862,30 +870,43 @@ class Game {
         document.getElementById('finalScore').textContent = this.score;
         document.getElementById('finalDistance').textContent = Math.floor(this.distance);
         
-        // Always reset the UI elements first
-        const nameInput = document.querySelector('.input-container');
-        const buttons = document.querySelectorAll('#gameOverMenu .btn');
-        if (nameInput) nameInput.style.display = 'block';
-        buttons.forEach(btn => btn.style.display = 'inline-block');
-        
         // Check if it's a high score
         if (this.isHighScore()) {
+            // Clear the name input and focus on it
+            const nameInput = document.getElementById('playerName');
+            nameInput.value = '';
+            
             // Show game over menu for high score entry
             console.log('High score detected, showing full game over menu');
             this.showGameOverMenu();
+            
+            // Focus on the name input after a short delay
+            setTimeout(() => {
+                nameInput.focus();
+            }, 100);
         } else {
             // Show game over screen briefly, then auto-save and go to leaderboard
             console.log('Regular score, showing brief game over then leaderboard');
             this.showGameOverMenu();
             
-            // Hide the input and buttons for non-high scores
-            if (nameInput) nameInput.style.display = 'none';
-            buttons.forEach(btn => btn.style.display = 'none');
+            // Hide the high score elements for non-high scores
+            const highScoreTitle = document.querySelector('#gameOverMenu h3');
+            const nameContainer = document.querySelector('.input-container');
+            const saveButton = document.getElementById('saveScoreBtn');
+            
+            if (highScoreTitle) highScoreTitle.style.display = 'none';
+            if (nameContainer) nameContainer.style.display = 'none';
+            if (saveButton) saveButton.style.display = 'none';
             
             // Auto-save and transition to leaderboard after 2 seconds
             setTimeout(() => {
                 this.saveScoreAnonymous();
                 this.showLeaderboard();
+                
+                // Restore elements for next time
+                if (highScoreTitle) highScoreTitle.style.display = 'block';
+                if (nameContainer) nameContainer.style.display = 'block';
+                if (saveButton) saveButton.style.display = 'inline-block';
             }, 2000);
         }
     }
@@ -1091,9 +1112,6 @@ class Game {
     
     drawBuilding(building) {
         this.ctx.save();
-        
-        // Apply opacity based on depth for proper parallax effect
-        this.ctx.globalAlpha = building.opacity || 1.0;
         
         // Main building body with gradient
         const gradient = this.ctx.createLinearGradient(building.x, 0, building.x + building.width, 0);
@@ -2147,27 +2165,41 @@ class Game {
     }
     
     showGameOverMenu() {
+        console.log('Showing game over menu');
         this.hideAllMenus();
-        document.getElementById('gameOverMenu').classList.remove('hidden');
+        
+        const gameOverMenu = document.getElementById('gameOverMenu');
+        gameOverMenu.classList.remove('hidden');
+        console.log('Game over menu visibility:', !gameOverMenu.classList.contains('hidden'));
         
         // Show the game title
         const gameTitle = document.querySelector('.arcade-title');
         if (gameTitle) {
             gameTitle.style.display = 'block';
         }
+        
+        // Ensure the menu is visible and on top
+        gameOverMenu.style.display = 'block';
+        gameOverMenu.style.zIndex = '15000';
     }
     
     isHighScore() {
         const scores = JSON.parse(localStorage.getItem('energyDashScores') || '[]');
         
+        console.log('Checking if high score. Current score:', this.score);
+        console.log('Existing scores count:', scores.length);
+        
         // If less than 10 scores, it's always a high score
         if (scores.length < 10) {
+            console.log('Less than 10 scores, this is a high score');
             return true;
         }
         
         // Check if current score beats the lowest high score
         const lowestHighScore = scores[scores.length - 1].score;
-        return this.score > lowestHighScore;
+        const isHigh = this.score > lowestHighScore;
+        console.log('Lowest high score:', lowestHighScore, 'Is high score:', isHigh);
+        return isHigh;
     }
     
     showLeaderboard() {
@@ -2190,8 +2222,15 @@ class Game {
     }
     
     saveScore() {
-        const playerName = document.getElementById('playerName').value || 'Anonymous';
-        const characterName = this.selectedCharacter ? this.characters[this.selectedCharacter].name : 'Unknown';
+        const playerName = document.getElementById('playerName').value.trim();
+        
+        // Don't save if no name is provided
+        if (!playerName) {
+            console.log('No name provided, not saving score');
+            return;
+        }
+        
+        const characterName = this.selectedCharacter ? this.characters[this.selectedCharacter].name : 'Player';
         
         const scoreEntry = {
             name: playerName,
@@ -2200,6 +2239,8 @@ class Game {
             distance: Math.floor(this.distance),
             date: new Date().toLocaleDateString()
         };
+        
+        console.log('Saving score entry:', scoreEntry);
         
         // Get existing scores
         let scores = JSON.parse(localStorage.getItem('energyDashScores') || '[]');
